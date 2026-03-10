@@ -46,7 +46,7 @@ with col2:
     st.markdown("<h1 style='text-align:center;'>SMU Scope 2 Emissions Dashboard</h1>", unsafe_allow_html=True)
 
 with col3:
-    st.image("carbon_jar_logo.jfif", width=120)
+    st.image("carbon_jar_logo (1).jfif", width=120)
 
 st.markdown("---")
 
