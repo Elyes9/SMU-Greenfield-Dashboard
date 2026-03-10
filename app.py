@@ -39,7 +39,7 @@ h1, h2, h3 {
 # ----------------------------
 @st.cache_data
 def load_data():
-    df = pd.read_csv("Scope2_Emissions.csv")
+    df = pd.read_csv("Scope 2 Emissions.csv")
     return df
 
 df = load_data()
