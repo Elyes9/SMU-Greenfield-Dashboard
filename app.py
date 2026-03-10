@@ -2,18 +2,18 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 
-# -----------------------------------
+# ----------------------------
 # PAGE CONFIG
-# -----------------------------------
+# ----------------------------
 st.set_page_config(
     page_title="SMU Greenfield Project",
     page_icon="🌿",
     layout="wide"
 )
 
-# -----------------------------------
-# GREEN THEME STYLE
-# -----------------------------------
+# ----------------------------
+# GREEN THEME
+# ----------------------------
 st.markdown("""
 <style>
 
@@ -29,28 +29,26 @@ h1, h2, h3 {
     background-color: #dcedc8;
     border-radius: 12px;
     padding: 15px;
-    border: 1px solid #c5e1a5;
 }
 
 </style>
 """, unsafe_allow_html=True)
 
-# -----------------------------------
+# ----------------------------
 # LOAD DATA
-# -----------------------------------
+# ----------------------------
 @st.cache_data
 def load_data():
-    df = pd.read_excel("Scope 2 Emissions.xlsx", engine="openpyxl")
+    df = pd.read_csv("Scope2_Emissions.csv")
     return df
 
 df = load_data()
 
-# Ensure numeric values
 df["Consumption (kWh)"] = pd.to_numeric(df["Consumption (kWh)"], errors="coerce")
 
-# -----------------------------------
+# ----------------------------
 # HEADER WITH LOGOS
-# -----------------------------------
+# ----------------------------
 col1, col2, col3 = st.columns([1,3,1])
 
 with col1:
@@ -67,77 +65,72 @@ with col3:
 
 st.markdown("---")
 
-# -----------------------------------
-# KPI METRICS
-# -----------------------------------
+# ----------------------------
+# KPIs
+# ----------------------------
 total_consumption = df["Consumption (kWh)"].sum()
 avg_consumption = df["Consumption (kWh)"].mean()
 meters = df["Reference of electric meter"].nunique()
 
-k1, k2, k3 = st.columns(3)
+c1, c2, c3 = st.columns(3)
 
-k1.metric("Total Electricity Consumption (kWh)", f"{total_consumption:,.0f}")
-k2.metric("Average Consumption (kWh)", f"{avg_consumption:,.0f}")
-k3.metric("Number of Electric Meters", meters)
+c1.metric("Total Electricity Consumption (kWh)", f"{total_consumption:,.0f}")
+c2.metric("Average Consumption (kWh)", f"{avg_consumption:,.0f}")
+c3.metric("Number of Electric Meters", meters)
 
 st.markdown("---")
 
-# -----------------------------------
+# ----------------------------
 # BAR CHART
-# -----------------------------------
+# ----------------------------
 st.subheader("Electricity Consumption by Meter")
 
 meter_data = df.groupby("Reference of electric meter")["Consumption (kWh)"].sum()
 
 st.bar_chart(meter_data)
 
-# -----------------------------------
+# ----------------------------
 # LINE CHART
-# -----------------------------------
+# ----------------------------
 st.subheader("Electricity Consumption by Period")
 
 period_data = df.groupby("Period")["Consumption (kWh)"].sum()
 
 st.line_chart(period_data)
 
-# -----------------------------------
+# ----------------------------
 # EMISSION CALCULATOR
-# -----------------------------------
+# ----------------------------
 st.subheader("Scope 2 Emission Calculator")
 
 emission_factor = st.slider(
     "Grid Emission Factor (kg CO₂e / kWh)",
-    min_value=0.1,
-    max_value=1.0,
-    value=0.55
+    0.1,
+    1.0,
+    0.55
 )
 
 emissions = total_consumption * emission_factor / 1000
 
-st.metric(
-    "Estimated Scope 2 Emissions (tCO₂e)",
-    f"{emissions:,.2f}"
-)
+st.metric("Estimated Scope 2 Emissions (tCO₂e)", f"{emissions:,.2f}")
 
-# -----------------------------------
+# ----------------------------
 # DATA TABLE
-# -----------------------------------
-st.subheader("Electricity Consumption Dataset")
+# ----------------------------
+st.subheader("Dataset")
 
 st.dataframe(df)
 
-# -----------------------------------
+# ----------------------------
 # FOOTER
-# -----------------------------------
+# ----------------------------
 st.markdown("---")
 
 st.markdown(
 """
 🌿 **South Mediterranean University – Carbon Accounting Dashboard**
 
-This dashboard estimates **Scope 2 emissions** using electricity consumption data  
+This dashboard estimates Scope 2 emissions using electricity consumption data
 and a configurable grid emission factor.
-
-Built for carbon accounting analysis aligned with the **GHG Protocol methodology**.
 """
 )
