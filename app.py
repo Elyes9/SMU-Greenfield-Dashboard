@@ -6,7 +6,7 @@ import numpy as np
 # PAGE CONFIG
 # -----------------------------
 st.set_page_config(
-    page_title="SMU Carbon Dashboard",
+    page_title="SMU Greenfield Project",
     page_icon="🌿",
     layout="wide"
 )
