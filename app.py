@@ -2,145 +2,160 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 
-# --------------------------------------------------
+# -------------------------
 # PAGE CONFIG
-# --------------------------------------------------
+# -------------------------
 st.set_page_config(
-    page_title="SMU Greenfield Project",
+    page_title="SMU Carbon Dashboard",
     layout="wide"
 )
 
-# --------------------------------------------------
-# GREEN THEME
-# --------------------------------------------------
+# -------------------------
+# GREEN THEME STYLE
+# -------------------------
 st.markdown("""
 <style>
-
 .main {
-background-color:#f4fff4;
+    background-color:#f5fff5;
 }
-
-h1,h2,h3{
-color:#0f7d3e;
+.kpi-card {
+    background-color:#e8f5e9;
+    padding:20px;
+    border-radius:12px;
+    text-align:center;
 }
-
-.kpi{
-background-color:#e6f5ea;
-padding:20px;
-border-radius:12px;
-text-align:center;
-font-size:20px;
-font-weight:bold;
-}
-
 </style>
 """, unsafe_allow_html=True)
 
-# --------------------------------------------------
-# HEADER WITH LOGOS
-# --------------------------------------------------
-col1,col2,col3 = st.columns([1,3,1])
+# -------------------------
+# LOGOS
+# -------------------------
+col1, col2 = st.columns([1,6])
 
 with col1:
-    st.image("LOGO_SMU_2023_FINAL.png", width=140)
+    st.image("LOGO_SMU_2023_FINAL.png", width=120)
 
 with col2:
-    st.title("SMU Scope 2 Carbon Emissions Dashboard 🌱")
+    st.title("SMU Scope 2 Carbon Emissions Dashboard")
+    st.write("Greenfield Carbon Accounting Project")
 
-with col3:
-    st.image("carbon_jar_logo (1).jfif", width=120)
+st.image("carbon_jar_logo (1).jfif", width=120)
 
-st.markdown("---")
-
-# --------------------------------------------------
+# -------------------------
 # LOAD DATA
-# --------------------------------------------------
+# -------------------------
 @st.cache_data
 def load_data():
-    df = pd.read_csv("Scope 2 emissions.csv")
+    df = pd.read_csv("Scope 2 Emissions.csv")
     return df
 
 df = load_data()
 
-# --------------------------------------------------
-# SIDEBAR FILTERS
-# --------------------------------------------------
-st.sidebar.header("Dashboard Filters")
+# -------------------------
+# SIDEBAR FILTER
+# -------------------------
+st.sidebar.header("Filters")
 
-if "Building" in df.columns:
-    building = st.sidebar.multiselect(
-        "Select Building",
-        df["Building"].unique(),
-        default=df["Building"].unique()
-    )
-
-    df = df[df["Building"].isin(building)]
-
-# --------------------------------------------------
-# EMISSION FACTOR
-# --------------------------------------------------
-emission_factor = st.sidebar.slider(
-    "Emission Factor (kg CO2 / kWh)",
-    0.1,1.0,0.233
+buildings = st.sidebar.multiselect(
+    "Select Building",
+    df["Building"].unique(),
+    default=df["Building"].unique()
 )
 
-# --------------------------------------------------
-# CALCULATE EMISSIONS
-# --------------------------------------------------
-if "Electricity Consumption (kWh)" in df.columns:
-    df["CO2 Emissions (kg)"] = df["Electricity Consumption (kWh)"] * emission_factor
+df = df[df["Building"].isin(buildings)]
 
-# --------------------------------------------------
+# -------------------------
+# EMISSION FACTOR INPUT
+# -------------------------
+emission_factor = st.sidebar.number_input(
+    "Emission Factor (kg CO2 / kWh)",
+    value=0.55
+)
+
+# -------------------------
+# EMISSION CALCULATION
+# -------------------------
+df["CO2 Emissions (kg)"] = df["Electricity_kWh"] * emission_factor
+
+# -------------------------
 # KPI CARDS
-# --------------------------------------------------
-total_energy = df["Electricity Consumption (kWh)"].sum()
+# -------------------------
+total_energy = df["Electricity_kWh"].sum()
 total_emissions = df["CO2 Emissions (kg)"].sum()
-avg_energy = df["Electricity Consumption (kWh)"].mean()
+avg_energy = df["Electricity_kWh"].mean()
 
-c1,c2,c3 = st.columns(3)
+col1, col2, col3 = st.columns(3)
 
-with c1:
-    st.markdown(f'<div class="kpi">⚡ Total Electricity<br>{total_energy:,.0f} kWh</div>', unsafe_allow_html=True)
+with col1:
+    st.markdown(f"""
+    <div class="kpi-card">
+    <h3>Total Electricity</h3>
+    <h2>{total_energy:,.0f} kWh</h2>
+    </div>
+    """, unsafe_allow_html=True)
 
-with c2:
-    st.markdown(f'<div class="kpi">🌍 Total CO₂ Emissions<br>{total_emissions:,.0f} kg</div>', unsafe_allow_html=True)
+with col2:
+    st.markdown(f"""
+    <div class="kpi-card">
+    <h3>Total CO2 Emissions</h3>
+    <h2>{total_emissions:,.0f} kg</h2>
+    </div>
+    """, unsafe_allow_html=True)
 
-with c3:
-    st.markdown(f'<div class="kpi">📊 Average Consumption<br>{avg_energy:,.0f} kWh</div>', unsafe_allow_html=True)
+with col3:
+    st.markdown(f"""
+    <div class="kpi-card">
+    <h3>Average Electricity</h3>
+    <h2>{avg_energy:,.0f} kWh</h2>
+    </div>
+    """, unsafe_allow_html=True)
 
-st.markdown("---")
+st.write("")
 
-# --------------------------------------------------
-# ELECTRICITY CONSUMPTION CHART
-# --------------------------------------------------
-st.subheader("Electricity Consumption Over Time ⚡")
+# -------------------------
+# ENERGY BY BUILDING
+# -------------------------
+st.subheader("Electricity Consumption by Building")
 
-if "Date" in df.columns:
-    energy_time = df.groupby("Date")["Electricity Consumption (kWh)"].sum()
-    st.line_chart(energy_time)
+energy_building = df.groupby("Building")["Electricity_kWh"].sum()
 
-# --------------------------------------------------
-# CO2 EMISSIONS CHART
-# --------------------------------------------------
-st.subheader("CO₂ Emissions Over Time 🌍")
+st.bar_chart(energy_building)
 
-if "Date" in df.columns:
-    emissions_time = df.groupby("Date")["CO2 Emissions (kg)"].sum()
-    st.area_chart(emissions_time)
+# -------------------------
+# CO2 EMISSIONS BY BUILDING
+# -------------------------
+st.subheader("CO2 Emissions by Building")
 
-# --------------------------------------------------
+emissions_building = df.groupby("Building")["CO2 Emissions (kg)"].sum()
+
+st.bar_chart(emissions_building)
+
+# -------------------------
 # TOP ELECTRICITY METERS
-# --------------------------------------------------
-st.subheader("Top Electricity Meters 🔌")
+# -------------------------
+st.subheader("Top Electricity Meters")
 
-if "Meter" in df.columns:
-    meter_rank = df.groupby("Meter")["Electricity Consumption (kWh)"].sum()
-    meter_rank = meter_rank.sort_values(ascending=False).head(10)
+top_meters = df.sort_values(
+    "Electricity_kWh",
+    ascending=False
+).head(10)
 
-    st.bar_chart(meter_rank)
+st.dataframe(top_meters)
 
-# --------------------------------------------------
+# -------------------------
+# MONTHLY ELECTRICITY
+# -------------------------
+if "Month" in df.columns:
+
+    st.subheader("Monthly Electricity Consumption")
+
+    monthly = df.groupby("Month")["Electricity_kWh"].sum()
+
+    st.line_chart(monthly)
+
+# -------------------------
 # DATA TABLE
-# --------------------------------------------------
-st.subheader("Dataset Preview")
+# -------------------------
+st.subheader("Dataset")
+
 st.dataframe(df)
