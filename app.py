@@ -11,24 +11,16 @@ st.set_page_config(
 )
 
 # ---------------------------------------------------
-# STYLE (Green Professional Theme)
+# GREEN STYLE
 # ---------------------------------------------------
 st.markdown("""
 <style>
-
 .main {
-    background-color: #f4fbf4;
+background-color:#f4fbf4;
 }
 
 h1, h2, h3 {
-    color: #0a6e3d;
-}
-
-.kpi {
-    background-color: #e8f5e9;
-    padding:20px;
-    border-radius:10px;
-    text-align:center;
+color:#0a6e3d;
 }
 
 </style>
@@ -59,18 +51,24 @@ def load_data():
 
     df = pd.read_csv("Scope 2 Emissions (1).csv")
 
-    # Clean electricity column
-    df["Consumption (kWh)"] = (
-        df["Consumption (kWh)"]
-        .astype(str)
-        .str.replace(",", "")
-        .str.replace(" ", "")
-        .replace("?", np.nan)
-    )
+    # Convert everything to string first
+    df["Consumption (kWh)"] = df["Consumption (kWh)"].astype(str)
 
-    df["Consumption (kWh)"] = pd.to_numeric(df["Consumption (kWh)"])
+    # Remove spaces and commas
+    df["Consumption (kWh)"] = df["Consumption (kWh)"].str.replace(",", "")
+    df["Consumption (kWh)"] = df["Consumption (kWh)"].str.replace(" ", "")
+
+    # Replace invalid values
+    df["Consumption (kWh)"] = df["Consumption (kWh)"].replace(["?", "nan", ""], np.nan)
+
+    # Convert safely to numeric
+    df["Consumption (kWh)"] = pd.to_numeric(df["Consumption (kWh)"], errors="coerce")
+
+    # Remove rows with missing consumption
+    df = df.dropna(subset=["Consumption (kWh)"])
 
     return df
+
 
 df = load_data()
 
@@ -83,7 +81,7 @@ emission_factor = st.sidebar.slider(
     "Emission Factor (kg CO₂ / kWh)",
     0.1,
     1.0,
-    0.233
+    0.55
 )
 
 # ---------------------------------------------------
@@ -100,16 +98,16 @@ avg_energy = df["Consumption (kWh)"].mean()
 
 c1, c2, c3 = st.columns(3)
 
-c1.metric("Total Electricity Consumption (kWh)", f"{total_energy:,.0f}")
+c1.metric("Total Electricity (kWh)", f"{total_energy:,.0f}")
 c2.metric("Total CO₂ Emissions (kg)", f"{total_emissions:,.0f}")
-c3.metric("Average Monthly Consumption (kWh)", f"{avg_energy:,.0f}")
+c3.metric("Average Consumption (kWh)", f"{avg_energy:,.0f}")
 
 st.divider()
 
 # ---------------------------------------------------
 # ELECTRICITY CHART
 # ---------------------------------------------------
-st.subheader("Monthly Electricity Consumption")
+st.subheader("Electricity Consumption by Period")
 
 energy_chart = df.set_index("Period")["Consumption (kWh)"]
 
@@ -118,24 +116,24 @@ st.bar_chart(energy_chart)
 # ---------------------------------------------------
 # CO2 EMISSIONS CHART
 # ---------------------------------------------------
-st.subheader("Monthly CO₂ Emissions")
+st.subheader("CO₂ Emissions by Period")
 
 emission_chart = df.set_index("Period")["CO2 Emissions (kg)"]
 
 st.line_chart(emission_chart)
 
 # ---------------------------------------------------
-# METERS INFORMATION
+# METERS CHART
 # ---------------------------------------------------
 st.subheader("Number of Electricity Meters")
 
-meters_chart = df.set_index("Period")["Number of meters"]
+meter_chart = df.set_index("Period")["Number of meters"]
 
-st.bar_chart(meters_chart)
+st.bar_chart(meter_chart)
 
 # ---------------------------------------------------
 # DATA TABLE
 # ---------------------------------------------------
-st.subheader("Dataset Overview")
+st.subheader("Dataset")
 
 st.dataframe(df)
