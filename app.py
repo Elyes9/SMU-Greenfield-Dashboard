@@ -2,147 +2,81 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 
-# ---------------------------------------------------
-# PAGE CONFIG
-# ---------------------------------------------------
+# --- PAGE CONFIG ---
+st.set_page_config(
+    page_title="Carbon Dashboard",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
 
-st.set_page_config(page_title="SMU Scope 2 Dashboard", layout="wide")
+# --- HEADER ---
+st.title("🌍 Carbon Emissions Dashboard")
+st.markdown("Explore carbon emissions data interactively with filters and charts.")
 
-# ---------------------------------------------------
-# HEADER WITH LOGOS
-# ---------------------------------------------------
-
-col1, col2, col3 = st.columns([1,3,1])
-
-with col1:
-    st.image("LOGO_SMU_2023_FINAL.png", width=120)
-
-with col2:
-    st.title("SMU Greenfield Project")
-
-with col3:
-    st.image("carbon_jar_logo (1).jfif", width=120)
-
-st.markdown("---")
-
-# ---------------------------------------------------
-# EMISSION FACTOR
-# ---------------------------------------------------
-
-EMISSION_FACTOR = 0.42
-
-# ---------------------------------------------------
-# LOAD DATA
-# ---------------------------------------------------
-
+# --- LOAD DATA ---
 @st.cache_data
 def load_data():
-
-    df = pd.read_csv("Scope 2 Emissions (1).csv")
-
-    df.columns = df.columns.str.strip()
-
-    # Convert numeric columns
-    df["Consumption (kWh)"] = pd.to_numeric(df["Consumption (kWh)"], errors="coerce")
-    df["Number of meters"] = pd.to_numeric(df["Number of meters"], errors="coerce")
-
-    # Fill missing values
-    df["Consumption (kWh)"] = df["Consumption (kWh)"].fillna(0)
-    df["Number of meters"] = df["Number of meters"].replace(0,1)
-
-    # Month order
-    months_order = [
-        "Jan","Feb","Mar","Apr","May","Jun",
-        "Jul","Aug","Sep","Oct","Nov","Dec"
-    ]
-
-    df["Period"] = pd.Categorical(df["Period"], categories=months_order, ordered=True)
-
-    df = df.sort_values("Period")
-
-    # Calculate emissions
-    df["CO2 Emissions (kg)"] = df["Consumption (kWh)"] * EMISSION_FACTOR
-
-    # Consumption per meter
-    df["Consumption per meter"] = df["Consumption (kWh)"] / df["Number of meters"]
-
+    # Example dataset: OWID CO₂ data
+    url = "https://raw.githubusercontent.com/owid/co2-data/master/owid-co2-data.csv"
+    df = pd.read_csv(url)
+    # Keep only a few relevant columns for simplicity
+    df = df[["country", "year", "co2", "co2_per_capita", "population"]]
     return df
-
 
 df = load_data()
 
-# ---------------------------------------------------
-# KPIs
-# ---------------------------------------------------
+# --- SIDEBAR FILTERS ---
+st.sidebar.header("Filters")
+countries = df["country"].unique()
+selected_countries = st.sidebar.multiselect(
+    "Select countries", countries, default=["World"]
+)
 
-total_consumption = df["Consumption (kWh)"].sum()
-total_emissions = df["CO2 Emissions (kg)"].sum()
-avg_meter_consumption = df["Consumption per meter"].mean()
+years = df["year"].unique()
+selected_year_range = st.sidebar.slider(
+    "Select year range",
+    int(min(years)),
+    int(max(years)),
+    (2000, 2023)
+)
 
-c1, c2, c3 = st.columns(3)
+# Filter data
+df_filtered = df[df["country"].isin(selected_countries)]
+df_filtered = df_filtered[
+    (df_filtered["year"] >= selected_year_range[0]) &
+    (df_filtered["year"] <= selected_year_range[1])
+]
 
-c1.metric("Total Electricity Consumption (kWh)", f"{total_consumption:,.0f}")
-c2.metric("Total CO₂ Emissions (kg)", f"{total_emissions:,.0f}")
-c3.metric("Average Consumption per Meter (kWh)", f"{avg_meter_consumption:,.1f}")
+# --- MAIN DASHBOARD ---
+st.markdown("## 📊 CO₂ Emissions Over Time")
+
+# Line chart using Streamlit
+for country in selected_countries:
+    df_country = df_filtered[df_filtered["country"] == country]
+    st.line_chart(df_country.set_index("year")["co2"], height=300, width=700)
+
+# Bar chart for latest year
+latest_year = df_filtered["year"].max()
+df_latest = df_filtered[df_filtered["year"] == latest_year]
+
+st.markdown(f"## 📈 CO₂ Emissions by Country in {latest_year}")
+
+# Bar chart using Streamlit
+st.bar_chart(df_latest.set_index("country")["co2"], height=400)
+
+# --- KPI METRICS ---
+st.markdown(f"## 📌 Key Metrics ({latest_year})")
+
+total_co2 = np.sum(df_latest["co2"])
+avg_per_capita = np.mean(df_latest["co2_per_capita"].dropna())
+
+col1, col2 = st.columns(2)
+col1.metric("🌐 Total CO₂ Emissions (Mt)", f"{total_co2:,.0f}")
+col2.metric("👤 Average CO₂ per Capita (t)", f"{avg_per_capita:.2f}")
+
+# --- RAW DATA ---
+with st.expander("View Raw Data"):
+    st.dataframe(df_filtered)
 
 st.markdown("---")
-
-# ---------------------------------------------------
-# MONTHLY CONSUMPTION
-# ---------------------------------------------------
-
-st.subheader("Monthly Electricity Consumption")
-
-st.line_chart(
-    df.set_index("Period")[["Consumption (kWh)"]]
-)
-
-# ---------------------------------------------------
-# MONTHLY EMISSIONS
-# ---------------------------------------------------
-
-st.subheader("Monthly CO₂ Emissions")
-
-st.bar_chart(
-    df.set_index("Period")[["CO2 Emissions (kg)"]]
-)
-
-# ---------------------------------------------------
-# NUMBER OF METERS
-# ---------------------------------------------------
-
-st.subheader("Number of Electricity Meters")
-
-st.line_chart(
-    df.set_index("Period")[["Number of meters"]]
-)
-
-# ---------------------------------------------------
-# CONSUMPTION PER METER
-# ---------------------------------------------------
-
-st.subheader("Consumption per Meter")
-
-st.bar_chart(
-    df.set_index("Period")[["Consumption per meter"]]
-)
-
-# ---------------------------------------------------
-# EMISSION SHARE
-# ---------------------------------------------------
-
-st.subheader("Monthly Share of Total Emissions")
-
-df["Emission Share (%)"] = (df["CO2 Emissions (kg)"] / total_emissions) * 100
-
-st.bar_chart(
-    df.set_index("Period")[["Emission Share (%)"]]
-)
-
-# ---------------------------------------------------
-# DATA TABLE
-# ---------------------------------------------------
-
-st.subheader("Dataset")
-
-st.dataframe(df)
+st.caption("Data source: Our World in Data (https://ourworldindata.org/co2-emissions)")
