@@ -2,81 +2,95 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 
-# --- PAGE CONFIG ---
-st.set_page_config(
-    page_title="Carbon Dashboard",
-    layout="wide",
-    initial_sidebar_state="expanded"
-)
+# -----------------------------
+# PAGE CONFIG
+# -----------------------------
+st.set_page_config(page_title="Scope 2 Emissions Dashboard", layout="wide")
 
-# --- HEADER ---
-st.title("🌍 Carbon Emissions Dashboard")
-st.markdown("Explore carbon emissions data interactively with filters and charts.")
+st.title("🌍 Scope 2 Carbon Emissions Dashboard")
 
-# --- LOAD DATA ---
+# -----------------------------
+# LOAD DATA
+# -----------------------------
 @st.cache_data
 def load_data():
-    # Example dataset: OWID CO₂ data
-    url = "https://raw.githubusercontent.com/owid/co2-data/master/owid-co2-data.csv"
-    df = pd.read_csv(url)
-    # Keep only a few relevant columns for simplicity
-    df = df[["country", "year", "co2", "co2_per_capita", "population"]]
+    df = pd.read_csv("Scope 2 Emissions (1).csv")
+
+    # Clean consumption column
+    df["Consumption (kWh)"] = (
+        df["Consumption (kWh)"]
+        .astype(str)
+        .str.replace(" ", "")
+        .replace("?", np.nan)
+    )
+
+    df["Consumption (kWh)"] = pd.to_numeric(df["Consumption (kWh)"], errors="coerce")
+
+    # Convert Period to datetime for correct sorting
+    df["Period"] = pd.to_datetime(df["Period"], format="%b-%y")
+
+    # Sort months correctly
+    df = df.sort_values("Period")
+
     return df
 
 df = load_data()
 
-# --- SIDEBAR FILTERS ---
-st.sidebar.header("Filters")
-countries = df["country"].unique()
-selected_countries = st.sidebar.multiselect(
-    "Select countries", countries, default=["World"]
+# -----------------------------
+# SIDEBAR
+# -----------------------------
+st.sidebar.header("⚙️ Dashboard Controls")
+
+emission_factor = st.sidebar.slider(
+    "Emission Factor (kg CO₂ per kWh)",
+    min_value=0.1,
+    max_value=1.0,
+    value=0.45,
+    step=0.05
 )
 
-years = df["year"].unique()
-selected_year_range = st.sidebar.slider(
-    "Select year range",
-    int(min(years)),
-    int(max(years)),
-    (2000, 2023)
-)
+# -----------------------------
+# CALCULATE EMISSIONS
+# -----------------------------
+df["CO2 Emissions (kg)"] = df["Consumption (kWh)"] * emission_factor
 
-# Filter data
-df_filtered = df[df["country"].isin(selected_countries)]
-df_filtered = df_filtered[
-    (df_filtered["year"] >= selected_year_range[0]) &
-    (df_filtered["year"] <= selected_year_range[1])
-]
+# -----------------------------
+# KPI METRICS
+# -----------------------------
+total_consumption = df["Consumption (kWh)"].sum()
+total_emissions = df["CO2 Emissions (kg)"].sum()
+avg_emissions = df["CO2 Emissions (kg)"].mean()
 
-# --- MAIN DASHBOARD ---
-st.markdown("## 📊 CO₂ Emissions Over Time")
+col1, col2, col3 = st.columns(3)
 
-# Line chart using Streamlit
-for country in selected_countries:
-    df_country = df_filtered[df_filtered["country"] == country]
-    st.line_chart(df_country.set_index("year")["co2"], height=300, width=700)
+col1.metric("⚡ Total Electricity (kWh)", f"{total_consumption:,.0f}")
+col2.metric("🌍 Total CO₂ Emissions (kg)", f"{total_emissions:,.0f}")
+col3.metric("📊 Average Monthly CO₂ (kg)", f"{avg_emissions:,.0f}")
 
-# Bar chart for latest year
-latest_year = df_filtered["year"].max()
-df_latest = df_filtered[df_filtered["year"] == latest_year]
+st.divider()
 
-st.markdown(f"## 📈 CO₂ Emissions by Country in {latest_year}")
+# -----------------------------
+# PREPARE DATA FOR CHARTS
+# -----------------------------
+df_chart = df.set_index("Period")
 
-# Bar chart using Streamlit
-st.bar_chart(df_latest.set_index("country")["co2"], height=400)
+# -----------------------------
+# ELECTRICITY CONSUMPTION
+# -----------------------------
+st.subheader("⚡ Monthly Electricity Consumption")
 
-# --- KPI METRICS ---
-st.markdown(f"## 📌 Key Metrics ({latest_year})")
+st.line_chart(df_chart["Consumption (kWh)"])
 
-total_co2 = np.sum(df_latest["co2"])
-avg_per_capita = np.mean(df_latest["co2_per_capita"].dropna())
+# -----------------------------
+# CO2 EMISSIONS
+# -----------------------------
+st.subheader("🌍 Monthly CO₂ Emissions")
 
-col1, col2 = st.columns(2)
-col1.metric("🌐 Total CO₂ Emissions (Mt)", f"{total_co2:,.0f}")
-col2.metric("👤 Average CO₂ per Capita (t)", f"{avg_per_capita:.2f}")
+st.bar_chart(df_chart["CO2 Emissions (kg)"])
 
-# --- RAW DATA ---
-with st.expander("View Raw Data"):
-    st.dataframe(df_filtered)
+# -----------------------------
+# TABLE
+# -----------------------------
+st.subheader("📄 Cleaned Data")
 
-st.markdown("---")
-st.caption("Data source: Our World in Data (https://ourworldindata.org/co2-emissions)")
+st.dataframe(df, use_container_width=True)
