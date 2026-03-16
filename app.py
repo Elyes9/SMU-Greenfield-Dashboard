@@ -12,29 +12,33 @@ st.set_page_config(
 )
 
 # --------------------------------------------------
-# HEADER WITH SMU LOGO
+# HEADER WITH LOGOS
 # --------------------------------------------------
-col_logo, col_title = st.columns([1,5])
+col_logo1, col_title, col_logo2 = st.columns([1,4,1])
 
-with col_logo:
+with col_logo1:
     if os.path.exists("LOGO_SMU_2023_FINAL.png"):
-        st.image("LOGO_SMU_2023_FINAL.png", width=130)
+        st.image("LOGO_SMU_2023_FINAL.png", width=120)
 
 with col_title:
-    st.title("SMU Greenfield Project")
-    st.caption("Electricity consumption and emissions analysis – SMU")
+    st.title("Scope 2 Carbon Emissions Dashboard")
+    st.caption("Electricity consumption and emissions analysis")
+
+with col_logo2:
+    if os.path.exists("carbon_jar_logo (1).jfif"):
+        st.image("carbon_jar_logo (1).jfif", width=120)
 
 st.markdown("---")
 
 # --------------------------------------------------
-# LOAD AND CLEAN DATA
+# LOAD DATA
 # --------------------------------------------------
 @st.cache_data
 def load_data():
 
     df = pd.read_csv("Scope 2 Emissions (2).csv")
 
-    # Clean electricity column
+    # Clean electricity values
     df["Consumption (kWh)"] = (
         df["Consumption (kWh)"]
         .astype(str)
@@ -48,7 +52,7 @@ def load_data():
         errors="coerce"
     )
 
-    # Convert period to datetime
+    # Convert Period to datetime
     df["Period"] = pd.to_datetime(df["Period"], format="%b-%y")
 
     # Sort months
@@ -60,7 +64,7 @@ def load_data():
 df = load_data()
 
 # --------------------------------------------------
-# SIDEBAR CONTROLS
+# SIDEBAR
 # --------------------------------------------------
 st.sidebar.header("Dashboard Controls")
 
@@ -73,7 +77,7 @@ emission_factor = st.sidebar.slider(
 )
 
 # --------------------------------------------------
-# EMISSIONS CALCULATION
+# CALCULATIONS
 # --------------------------------------------------
 df["CO2 Emissions (kg)"] = df["Consumption (kWh)"] * emission_factor
 
@@ -106,7 +110,7 @@ k3.metric(
 st.markdown("---")
 
 # --------------------------------------------------
-# TIME SERIES CHARTS
+# TREND CHARTS
 # --------------------------------------------------
 st.subheader("Monthly Trends")
 
@@ -120,7 +124,6 @@ with c1:
 
     st.line_chart(electricity)
 
-
 with c2:
 
     st.markdown("**CO₂ Emissions (kg)**")
@@ -132,60 +135,32 @@ with c2:
 st.markdown("---")
 
 # --------------------------------------------------
-# HISTOGRAMS
+# ELECTRICITY HISTOGRAM
 # --------------------------------------------------
-st.subheader("Distribution Analysis")
+st.subheader("Electricity Consumption Distribution")
 
-col1, col2 = st.columns(2)
+values = df["Consumption (kWh)"].dropna()
 
-# Electricity Histogram
-with col1:
+hist, bins = np.histogram(values, bins=7)
 
-    st.markdown("**Electricity Consumption Distribution**")
+labels = [
+    f"{int(bins[i])}-{int(bins[i+1])}"
+    for i in range(len(hist))
+]
 
-    values = df["Consumption (kWh)"].dropna()
+hist_df = pd.DataFrame({
+    "Range": labels,
+    "Frequency": hist
+}).set_index("Range")
 
-    hist, bins = np.histogram(values, bins=7)
-
-    labels = [
-        f"{int(bins[i])}-{int(bins[i+1])}"
-        for i in range(len(hist))
-    ]
-
-    hist_df = pd.DataFrame({
-        "Range": labels,
-        "Frequency": hist
-    }).set_index("Range")
-
-    st.bar_chart(hist_df)
-
-# Emissions Histogram
-with col2:
-
-    st.markdown("**CO₂ Emissions Distribution**")
-
-    values = df["CO2 Emissions (kg)"].dropna()
-
-    hist, bins = np.histogram(values, bins=7)
-
-    labels = [
-        f"{int(bins[i])}-{int(bins[i+1])}"
-        for i in range(len(hist))
-    ]
-
-    hist_df = pd.DataFrame({
-        "Range": labels,
-        "Frequency": hist
-    }).set_index("Range")
-
-    st.bar_chart(hist_df)
+st.bar_chart(hist_df)
 
 st.markdown("---")
 
 # --------------------------------------------------
 # SCATTER RELATIONSHIP
 # --------------------------------------------------
-st.subheader("Relationship Between Consumption and Emissions")
+st.subheader("Electricity Consumption vs CO₂ Emissions")
 
 scatter_data = df[[
     "Consumption (kWh)",
