@@ -21,7 +21,7 @@ with col_logo1:
         st.image("LOGO_SMU_2023_FINAL.png", width=120)
 
 with col_title:
-    st.title("Scope 2 Carbon Emissions Dashboard")
+    st.title("SMU Greenfield Project")
     st.caption("Electricity consumption and emissions analysis")
 
 with col_logo2:
