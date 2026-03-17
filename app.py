@@ -141,21 +141,18 @@ st.subheader("Electricity Consumption Distribution")
 
 values = df["Consumption (kWh)"].dropna()
 
-hist, bins = np.histogram(values, bins=7)
+# create histogram
+hist, bins = np.histogram(values, bins=6)
 
-labels = [
-    f"{int(bins[i])}-{int(bins[i+1])}"
-    for i in range(len(hist))
-]
+# compute bin centers
+bin_centers = (bins[:-1] + bins[1:]) / 2
 
 hist_df = pd.DataFrame({
-    "Range": labels,
+    "Consumption (kWh)": bin_centers,
     "Frequency": hist
-}).set_index("Range")
+}).set_index("Consumption (kWh)")
 
 st.bar_chart(hist_df)
-
-st.markdown("---")
 
 # --------------------------------------------------
 # SCATTER RELATIONSHIP
