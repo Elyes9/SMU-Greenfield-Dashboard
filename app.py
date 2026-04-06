@@ -2,20 +2,18 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 
-# ----------------------------------
+# -----------------------------
 # PAGE CONFIG
-# ----------------------------------
-
+# -----------------------------
 st.set_page_config(
     page_title="SMU Carbon Dashboard",
     layout="wide"
 )
 
-# ----------------------------------
+# -----------------------------
 # HEADER WITH LOGOS
-# ----------------------------------
-
-col1, col2, col3 = st.columns([1,2,1])
+# -----------------------------
+col1, col2, col3 = st.columns([1,3,1])
 
 with col1:
     st.image("LOGO_SMU_2023_FINAL.png", width=150)
@@ -29,10 +27,9 @@ with col3:
 
 st.markdown("---")
 
-# ----------------------------------
+# -----------------------------
 # LOAD DATA
-# ----------------------------------
-
+# -----------------------------
 @st.cache_data
 def load_data():
 
@@ -46,71 +43,64 @@ def load_data():
 
 scope1_df, scope2_df = load_data()
 
-# ----------------------------------
-# MONTH ORDER (IMPORTANT)
-# ----------------------------------
-
+# -----------------------------
+# MONTH ORDER
+# -----------------------------
 month_order = [
     "Jan","Feb","Mar","Apr","May","Jun",
     "Jul","Aug","Sep","Oct","Nov","Dec"
 ]
 
-# ----------------------------------
-# SIDEBAR
-# ----------------------------------
+# -----------------------------
+# SIDEBAR FILTERS
+# -----------------------------
+st.sidebar.header("Filters")
 
-st.sidebar.header("Dashboard Filters")
+if "Building" in scope2_df.columns:
 
-year = st.sidebar.selectbox(
-    "Reporting Year",
-    ["2025"]
-)
+    building_filter = st.sidebar.multiselect(
+        "Select Building",
+        scope2_df["Building"].unique(),
+        default=scope2_df["Building"].unique()
+    )
 
-# ----------------------------------
+    scope2_df = scope2_df[scope2_df["Building"].isin(building_filter)]
+
+# -----------------------------
 # SCOPE 1 SECTION
-# ----------------------------------
-
+# -----------------------------
 st.header("🔥 Scope 1 Emissions")
 
-st.write(
-"Scope 1 emissions correspond to **direct greenhouse gas emissions** "
-"from sources owned or controlled by the institution."
-)
+st.write("Direct emissions from sources owned or controlled by SMU.")
 
-st.subheader("Scope 1 Data")
 st.dataframe(scope1_df)
 
-# KPI
+# KPIs
 if "Emission (kg CO2e)" in scope1_df.columns:
 
     total_scope1 = np.sum(scope1_df["Emission (kg CO2e)"])
 
-    st.metric(
-        "Total Scope 1 Emissions",
-        f"{total_scope1:,.0f} kg CO2e"
-    )
+    st.metric("Total Scope 1 Emissions", f"{total_scope1:,.0f} kg CO2e")
 
-# -------------------------------
+# -----------------------------
 # PLOT 1 : Emissions by Source
-# -------------------------------
-
+# -----------------------------
 if "Emission (kg CO2e)" in scope1_df.columns:
 
     st.subheader("Emissions by Source")
 
-    source_column = scope1_df.columns[0]
+    source_col = scope1_df.columns[0]
 
-    source_chart = scope1_df.groupby(source_column)["Emission (kg CO2e)"].sum()
+    emissions_by_source = scope1_df.groupby(source_col)["Emission (kg CO2e)"].sum()
 
-    st.bar_chart(source_chart)
+    st.bar_chart(emissions_by_source)
 
-# -------------------------------
+# -----------------------------
 # PLOT 2 : Monthly Emissions
-# -------------------------------
-
+# -----------------------------
 if "Month" in scope1_df.columns:
 
-    st.subheader("Monthly Emissions Trend")
+    st.subheader("Monthly Emissions")
 
     scope1_df["Month"] = pd.Categorical(
         scope1_df["Month"],
@@ -118,15 +108,14 @@ if "Month" in scope1_df.columns:
         ordered=True
     )
 
-    monthly = scope1_df.groupby("Month")["Emission (kg CO2e)"].sum()
+    monthly_scope1 = scope1_df.groupby("Month")["Emission (kg CO2e)"].sum()
 
-    st.line_chart(monthly)
+    st.line_chart(monthly_scope1)
 
-# -------------------------------
+# -----------------------------
 # PLOT 3 : Consumption vs Emissions
-# -------------------------------
-
-if "Consumption (kWh)" in scope1_df.columns and "Emission (kg CO2e)" in scope1_df.columns:
+# -----------------------------
+if "Consumption (kWh)" in scope1_df.columns:
 
     st.subheader("Consumption vs Emissions")
 
@@ -134,51 +123,63 @@ if "Consumption (kWh)" in scope1_df.columns and "Emission (kg CO2e)" in scope1_d
 
     st.bar_chart(chart_data)
 
+# -----------------------------
+# PLOT 4 : Emissions Distribution
+# -----------------------------
+if "Emission (kg CO2e)" in scope1_df.columns:
+
+    st.subheader("Emission Distribution")
+
+    distribution = scope1_df["Emission (kg CO2e)"]
+
+    st.bar_chart(distribution)
+
 st.markdown("---")
 
-# ----------------------------------
+# -----------------------------
 # SCOPE 2 SECTION
-# ----------------------------------
-
+# -----------------------------
 st.header("⚡ Scope 2 Emissions")
 
-st.write(
-"Scope 2 emissions correspond to **indirect emissions from purchased electricity** "
-"consumed by buildings and facilities."
-)
+st.write("Indirect emissions from purchased electricity.")
 
-st.subheader("Scope 2 Data")
 st.dataframe(scope2_df)
 
-# KPI
+# KPIs
 if "Emission (kg CO2e)" in scope2_df.columns:
 
     total_scope2 = np.sum(scope2_df["Emission (kg CO2e)"])
 
-    st.metric(
-        "Total Scope 2 Emissions",
-        f"{total_scope2:,.0f} kg CO2e"
-    )
+    st.metric("Total Scope 2 Emissions", f"{total_scope2:,.0f} kg CO2e")
 
-# -------------------------------
+# -----------------------------
 # PLOT 1 : Emissions by Building
-# -------------------------------
-
+# -----------------------------
 if "Building" in scope2_df.columns:
 
     st.subheader("Emissions by Building")
 
-    building_chart = scope2_df.groupby("Building")["Emission (kg CO2e)"].sum()
+    building_emissions = scope2_df.groupby("Building")["Emission (kg CO2e)"].sum()
 
-    st.bar_chart(building_chart)
+    st.bar_chart(building_emissions)
 
-# -------------------------------
-# PLOT 2 : Monthly Electricity Emissions
-# -------------------------------
+# -----------------------------
+# PLOT 2 : Electricity Consumption by Building
+# -----------------------------
+if "Consumption (kWh)" in scope2_df.columns:
 
+    st.subheader("Electricity Consumption by Building")
+
+    consumption_building = scope2_df.groupby("Building")["Consumption (kWh)"].sum()
+
+    st.bar_chart(consumption_building)
+
+# -----------------------------
+# PLOT 3 : Monthly Electricity Consumption
+# -----------------------------
 if "Month" in scope2_df.columns:
 
-    st.subheader("Monthly Electricity Emissions")
+    st.subheader("Monthly Electricity Consumption")
 
     scope2_df["Month"] = pd.Categorical(
         scope2_df["Month"],
@@ -186,29 +187,43 @@ if "Month" in scope2_df.columns:
         ordered=True
     )
 
-    monthly2 = scope2_df.groupby("Month")["Emission (kg CO2e)"].sum()
+    monthly_consumption = scope2_df.groupby("Month")["Consumption (kWh)"].sum()
 
-    st.line_chart(monthly2)
+    st.line_chart(monthly_consumption)
 
-# -------------------------------
-# PLOT 3 : Electricity Consumption
-# -------------------------------
+# -----------------------------
+# PLOT 4 : Monthly Scope 2 Emissions
+# -----------------------------
+if "Month" in scope2_df.columns:
 
-if "Consumption (kWh)" in scope2_df.columns:
+    st.subheader("Monthly Scope 2 Emissions")
 
-    st.subheader("Electricity Consumption")
+    monthly_emissions = scope2_df.groupby("Month")["Emission (kg CO2e)"].sum()
 
-    consumption_chart = scope2_df.groupby("Month")["Consumption (kWh)"].sum()
+    st.line_chart(monthly_emissions)
 
-    st.bar_chart(consumption_chart)
+# -----------------------------
+# PLOT 5 : Consumption per Meter
+# -----------------------------
+if "Number of meters" in scope2_df.columns:
+
+    st.subheader("Consumption per Meter")
+
+    scope2_df["Consumption per meter"] = (
+        scope2_df["Consumption (kWh)"] /
+        scope2_df["Number of meters"]
+    )
+
+    meter_chart = scope2_df.groupby("Building")["Consumption per meter"].mean()
+
+    st.bar_chart(meter_chart)
 
 st.markdown("---")
 
-# ----------------------------------
-# GLOBAL EMISSIONS COMPARISON
-# ----------------------------------
-
-st.header("📊 Scope 1 vs Scope 2 Comparison")
+# -----------------------------
+# GLOBAL COMPARISON
+# -----------------------------
+st.header("📊 Scope Comparison")
 
 scope1_total = 0
 scope2_total = 0
@@ -229,5 +244,5 @@ st.bar_chart(comparison_df.set_index("Scope"))
 st.markdown("---")
 
 st.markdown(
-"Dashboard developed for the **SMU Carbon Accounting Project – 2025**"
+"SMU Sustainability Monitoring Dashboard – Carbon Accounting Project 2025"
 )
