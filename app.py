@@ -122,107 +122,131 @@ st.line_chart(bus_plot)
 
 st.markdown("---")
 
+
+
 # ------------------------------------------------
-# SCOPE 2
+# SCOPE 2 – ELECTRICITY
 # ------------------------------------------------
 
-st.header("Scope 2 – Electricity Consumption")
+st.header("Scope 2 – Electricity Emissions")
 
+GRID_EF = 0.42   # kg CO2 per kWh
+
+scope2_df.columns = scope2_df.columns.str.strip()
+
+# Detect columns automatically
 num_cols = scope2_df.select_dtypes(include=np.number).columns
 consumption_col = num_cols[0]
 
+month_col = [c for c in scope2_df.columns if "month" in c.lower()][0]
+building_col = [c for c in scope2_df.columns if "building" in c.lower()][0]
+
 scope2_df[consumption_col] = pd.to_numeric(scope2_df[consumption_col], errors="coerce")
 
+# Calculate emissions
 scope2_df["CO2"] = scope2_df[consumption_col] * GRID_EF
 
-electricity_total = scope2_df["CO2"].sum()
+total_scope2 = scope2_df["CO2"].sum()
 
-st.metric("Electricity Emissions", f"{electricity_total:,.0f} kgCO2e")
-
-# ------------------------------------------------
-# MONTHLY TREND
-# ------------------------------------------------
-
-st.subheader("Monthly Electricity Consumption")
-
-month_cols = [c for c in scope2_df.columns if "month" in c.lower()]
-
-if month_cols:
-
-    month_col = month_cols[0]
-
-    months = [
-        "January","February","March","April","May","June",
-        "July","August","September","October","November","December"
-    ]
-
-    scope2_df[month_col] = pd.Categorical(
-        scope2_df[month_col],
-        categories=months,
-        ordered=True
-    )
-
-    monthly_consumption = scope2_df.groupby(month_col)[consumption_col].sum().sort_index()
-
-    st.line_chart(monthly_consumption)
-
-# ------------------------------------------------
-# MONTHLY EMISSIONS
-# ------------------------------------------------
-
-st.subheader("Monthly CO2 Emissions")
-
-if month_cols:
-
-    monthly_emissions = scope2_df.groupby(month_col)["CO2"].sum().sort_index()
-
-    st.bar_chart(monthly_emissions)
-
-# ------------------------------------------------
-# BUILDING CONSUMPTION
-# ------------------------------------------------
-
-building_cols = [c for c in scope2_df.columns if "building" in c.lower()]
-
-if building_cols:
-
-    st.subheader("Electricity Consumption by Building")
-
-    building_col = building_cols[0]
-
-    building_consumption = scope2_df.groupby(building_col)[consumption_col].sum()
-
-    st.bar_chart(building_consumption)
+# KPI
+st.metric("Total Electricity Emissions", f"{total_scope2:,.0f} kgCO2e")
 
 st.markdown("---")
 
 # ------------------------------------------------
-# TOTAL FOOTPRINT
+# MONTH ORDER
 # ------------------------------------------------
 
-st.header("Total Campus Carbon Footprint")
+months = [
+"January","February","March","April","May","June",
+"July","August","September","October","November","December"
+]
 
-total = vehicle_total + bus_total + electricity_total
-
-c1, c2, c3 = st.columns(3)
-
-c1.metric("Vehicles", f"{vehicle_total:,.0f}")
-c2.metric("Buses", f"{bus_total:,.0f}")
-c3.metric("Electricity", f"{electricity_total:,.0f}")
-
-st.success(f"Total Campus Emissions: {total:,.0f} kgCO2e")
+scope2_df[month_col] = pd.Categorical(
+    scope2_df[month_col],
+    categories=months,
+    ordered=True
+)
 
 # ------------------------------------------------
-# SCOPE COMPARISON
+# MONTHLY CONSUMPTION TREND
 # ------------------------------------------------
 
-st.subheader("Emission Sources Comparison")
+st.subheader("Monthly Electricity Consumption (2025)")
 
-comparison = pd.DataFrame(
-    {
-        "Emissions":[vehicle_total, bus_total, electricity_total]
-    },
-    index=["Vehicles","Buses","Electricity"]
+monthly_consumption = (
+    scope2_df
+    .groupby(month_col)[consumption_col]
+    .sum()
+    .sort_index()
+)
+
+st.line_chart(monthly_consumption)
+
+# ------------------------------------------------
+# MONTHLY CO2 EMISSIONS
+# ------------------------------------------------
+
+st.subheader("Monthly CO₂ Emissions from Electricity")
+
+monthly_emissions = (
+    scope2_df
+    .groupby(month_col)["CO2"]
+    .sum()
+    .sort_index()
+)
+
+st.bar_chart(monthly_emissions)
+
+# ------------------------------------------------
+# BUILDING ELECTRICITY CONSUMPTION
+# ------------------------------------------------
+
+st.subheader("Electricity Consumption by Building")
+
+building_consumption = (
+    scope2_df
+    .groupby(building_col)[consumption_col]
+    .sum()
+    .sort_values(ascending=False)
+)
+
+st.bar_chart(building_consumption)
+
+# ------------------------------------------------
+# BUILDING CO2 EMISSIONS
+# ------------------------------------------------
+
+st.subheader("CO₂ Emissions by Building")
+
+building_emissions = (
+    scope2_df
+    .groupby(building_col)["CO2"]
+    .sum()
+    .sort_values(ascending=False)
+)
+
+st.bar_chart(building_emissions)
+
+# ------------------------------------------------
+# TOP ELECTRICITY METERS
+# ------------------------------------------------
+
+st.subheader("Top Electricity Consumers")
+
+top_consumers = scope2_df.sort_values(consumption_col, ascending=False).head(10)
+
+st.dataframe(top_consumers)
+
+# ------------------------------------------------
+# CONSUMPTION VS EMISSIONS RELATIONSHIP
+# ------------------------------------------------
+
+st.subheader("Electricity Consumption vs CO₂ Emissions")
+
+scatter_df = scope2_df[[consumption_col, "CO2"]]
+
+st.scatter_chart(scatter_df)
 )
 
 st.bar_chart(comparison)
