@@ -2,218 +2,234 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 
-# --------------------------------------------------
+# ---------------------------------------------------
 # PAGE CONFIG
-# --------------------------------------------------
+# ---------------------------------------------------
 
 st.set_page_config(
     page_title="SMU Carbon Accounting Dashboard",
     layout="wide"
 )
 
-# --------------------------------------------------
-# HEADER WITH LOGOS
-# --------------------------------------------------
+# ---------------------------------------------------
+# LOGOS
+# ---------------------------------------------------
 
-col1, col2, col3 = st.columns([1,4,1])
+col1, col2, col3 = st.columns([1,3,1])
 
 with col1:
-    st.image("LOGO_SMU_2023_FINAL.png", width=120)
-
-with col2:
-    st.title("SMU Carbon Emissions Dashboard")
-    st.write("Executive Carbon Monitoring Platform – 2025")
+    st.image("LOGO_SMU_2023_FINAL.png", width=140)
 
 with col3:
-    st.image("carbon_jar_logo (1).jfif", width=100)
+    st.image("carbon_jar_logo (1).jfif", width=140)
 
-st.divider()
+st.title("SMU Campus Carbon Accounting Dashboard")
+st.markdown("### Scope 1 and Scope 2 Greenhouse Gas Emissions Analysis")
 
-# --------------------------------------------------
+st.markdown("---")
+
+# ---------------------------------------------------
 # LOAD DATA
-# --------------------------------------------------
+# ---------------------------------------------------
 
 @st.cache_data
 def load_data():
 
-    vehicle = pd.read_csv("Mobile_Combustion_Vehicle.csv")
+    vehicles = pd.read_csv("Mobile_Combustion_Vehicle.csv")
     buses = pd.read_csv("Mobile_Combustion_Buses.csv")
-    electricity = pd.read_csv("Scope 2 Emissions (3).csv")
+    electricity = pd.read_csv("Scope 2 Emissions (4).csv")
 
-    vehicle.columns = vehicle.columns.str.strip()
+    vehicles.columns = vehicles.columns.str.strip()
     buses.columns = buses.columns.str.strip()
     electricity.columns = electricity.columns.str.strip()
 
-    return vehicle, buses, electricity
+    return vehicles, buses, electricity
 
 
-vehicle_df, bus_df, scope2_df = load_data()
+vehicles_df, buses_df, scope2_df = load_data()
 
-# --------------------------------------------------
-# HELPER FUNCTION
-# --------------------------------------------------
+# ---------------------------------------------------
+# EMISSION FACTORS
+# ---------------------------------------------------
 
-def numeric_data(df):
-    return df.select_dtypes(include=np.number)
+CAR_EF_MIN = 2.20
+CAR_EF_MAX = 2.40
 
-# --------------------------------------------------
-# EXECUTIVE SUMMARY
-# --------------------------------------------------
+BUS_EF_MIN = 2.60
+BUS_EF_MAX = 2.80
 
-st.header("Executive Carbon Summary")
+GRID_EF = 0.42  # kgCO2/kWh
 
-vehicle_total = numeric_data(vehicle_df).sum().sum()
-bus_total = numeric_data(bus_df).sum().sum()
-electricity_total = numeric_data(scope2_df).sum().sum()
-
-total_emissions = vehicle_total + bus_total + electricity_total
-
-col1, col2, col3, col4 = st.columns(4)
-
-col1.metric("Vehicle Emissions", f"{vehicle_total:,.0f} kgCO2e")
-col2.metric("Bus Emissions", f"{bus_total:,.0f} kgCO2e")
-col3.metric("Electricity Emissions", f"{electricity_total:,.0f} kgCO2e")
-col4.metric("Total Campus Emissions", f"{total_emissions:,.0f} kgCO2e")
-
-st.divider()
-
-# --------------------------------------------------
+# ---------------------------------------------------
 # SCOPE 1 SECTION
-# --------------------------------------------------
+# ---------------------------------------------------
 
-st.header("Scope 1 – Mobile Combustion")
+st.header("Scope 1 – Direct Emissions")
 
-# --------------------------------------------------
+st.markdown("""
+Scope 1 emissions correspond to **direct greenhouse gas emissions from sources owned or controlled by the university**.
+This section focuses on **mobile combustion sources**, including **campus vehicles and buses**.
+""")
+
+# ===================================================
 # VEHICLES
-# --------------------------------------------------
+# ===================================================
 
-st.subheader("Cars Fleet Emissions")
+st.subheader("Mobile Combustion – Campus Vehicles")
 
-vehicle_numeric = numeric_data(vehicle_df)
+st.markdown(f"""
+**Emission factor range used for vehicles:**
 
-if not vehicle_numeric.empty:
+{CAR_EF_MIN} – {CAR_EF_MAX} kgCO₂ / litre of fuel
+""")
 
-    st.write("Fuel Consumption / Emissions Analysis")
+fuel_col = [c for c in vehicles_df.columns if "fuel" in c.lower() or "consumption" in c.lower()]
 
-    vehicle_plot = vehicle_numeric.sum()
-
-    st.bar_chart(vehicle_plot)
-
-    st.dataframe(vehicle_df)
-
+if fuel_col:
+    fuel_column = fuel_col[0]
 else:
-    st.warning("No numeric vehicle data detected")
+    fuel_column = vehicles_df.columns[-1]
 
-st.divider()
+vehicles_df[fuel_column] = pd.to_numeric(vehicles_df[fuel_column], errors="coerce")
 
-# --------------------------------------------------
+vehicles_df["CO2_min"] = vehicles_df[fuel_column] * CAR_EF_MIN
+vehicles_df["CO2_max"] = vehicles_df[fuel_column] * CAR_EF_MAX
+vehicles_df["CO2_mean"] = (vehicles_df["CO2_min"] + vehicles_df["CO2_max"]) / 2
+
+total_vehicle_emissions = vehicles_df["CO2_mean"].sum()
+
+st.metric("Total Vehicle Emissions", f"{total_vehicle_emissions:,.0f} kgCO2e")
+
+st.markdown("#### Vehicle Emissions")
+
+vehicle_plot = vehicles_df.set_index(vehicles_df.columns[0])["CO2_mean"]
+
+st.line_chart(vehicle_plot)
+
+st.markdown("---")
+
+# ===================================================
 # BUSES
-# --------------------------------------------------
+# ===================================================
 
-st.subheader("Campus Bus Fleet Emissions")
+st.subheader("Mobile Combustion – Campus Buses")
 
-bus_numeric = numeric_data(bus_df)
+st.markdown(f"""
+**Emission factor range used for buses:**
 
-if not bus_numeric.empty:
+{BUS_EF_MIN} – {BUS_EF_MAX} kgCO₂ / litre of fuel
+""")
 
-    bus_plot = bus_numeric.sum()
+fuel_col_bus = [c for c in buses_df.columns if "fuel" in c.lower() or "consumption" in c.lower()]
 
-    st.bar_chart(bus_plot)
-
-    st.dataframe(bus_df)
-
+if fuel_col_bus:
+    bus_fuel_column = fuel_col_bus[0]
 else:
-    st.warning("No numeric bus data detected")
+    bus_fuel_column = buses_df.columns[-1]
 
-st.divider()
+buses_df[bus_fuel_column] = pd.to_numeric(buses_df[bus_fuel_column], errors="coerce")
 
-# --------------------------------------------------
+buses_df["CO2_min"] = buses_df[bus_fuel_column] * BUS_EF_MIN
+buses_df["CO2_max"] = buses_df[bus_fuel_column] * BUS_EF_MAX
+buses_df["CO2_mean"] = (buses_df["CO2_min"] + buses_df["CO2_max"]) / 2
+
+total_bus_emissions = buses_df["CO2_mean"].sum()
+
+st.metric("Total Bus Emissions", f"{total_bus_emissions:,.0f} kgCO2e")
+
+st.markdown("#### Bus Emissions")
+
+bus_plot = buses_df.set_index(buses_df.columns[0])["CO2_mean"]
+
+st.line_chart(bus_plot)
+
+st.markdown("---")
+
+# ---------------------------------------------------
 # SCOPE 2 SECTION
-# --------------------------------------------------
+# ---------------------------------------------------
 
 st.header("Scope 2 – Electricity Consumption")
 
-scope2_numeric = numeric_data(scope2_df)
+st.markdown("""
+Scope 2 emissions correspond to **indirect emissions from purchased electricity** consumed on campus.
+""")
 
-if not scope2_numeric.empty:
+consumption_col = [c for c in scope2_df.columns if "kwh" in c.lower()]
 
-    st.subheader("Electricity Consumption by Building")
-
-    building_plot = scope2_numeric.sum()
-
-    st.bar_chart(building_plot)
-
-    st.dataframe(scope2_df)
-
+if consumption_col:
+    consumption_column = consumption_col[0]
 else:
-    st.warning("No electricity data detected")
+    consumption_column = scope2_df.columns[-1]
 
-st.divider()
+scope2_df[consumption_column] = pd.to_numeric(scope2_df[consumption_column], errors="coerce")
 
-# --------------------------------------------------
-# MONTHLY EMISSIONS TREND
-# --------------------------------------------------
+scope2_df["CO2"] = scope2_df[consumption_column] * GRID_EF
 
-st.header("Monthly Emissions Trend (2025)")
+total_scope2 = scope2_df["CO2"].sum()
 
-months = [
-"Jan","Feb","Mar","Apr","May","Jun",
-"Jul","Aug","Sep","Oct","Nov","Dec"
+st.metric("Total Electricity Emissions", f"{total_scope2:,.0f} kgCO2e")
+
+st.markdown("### Monthly Electricity Consumption")
+
+month_col = [c for c in scope2_df.columns if "month" in c.lower()]
+
+if month_col:
+    month_column = month_col[0]
+else:
+    month_column = scope2_df.columns[0]
+
+months_order = [
+"January","February","March","April","May","June",
+"July","August","September","October","November","December"
 ]
 
-monthly_data = {}
+scope2_df[month_column] = pd.Categorical(
+    scope2_df[month_column],
+    categories=months_order,
+    ordered=True
+)
 
-for m in months:
-    for df in [vehicle_df, bus_df, scope2_df]:
+monthly_consumption = scope2_df.groupby(month_column)[consumption_column].sum().sort_index()
 
-        if m in df.columns:
-            monthly_data[m] = monthly_data.get(m,0) + df[m].sum()
+st.line_chart(monthly_consumption)
 
-if monthly_data:
+st.markdown("### Monthly CO2 Emissions")
 
-    monthly_df = pd.DataFrame({
-        "Month": list(monthly_data.keys()),
-        "Emissions": list(monthly_data.values())
-    })
+monthly_emissions = scope2_df.groupby(month_column)["CO2"].sum().sort_index()
 
-    monthly_df = monthly_df.set_index("Month")
+st.line_chart(monthly_emissions)
 
-    st.line_chart(monthly_df)
+st.markdown("---")
 
-else:
-    st.info("Monthly columns not detected in dataset")
+# ---------------------------------------------------
+# BUILDING COMPARISON
+# ---------------------------------------------------
 
-st.divider()
+building_cols = [c for c in scope2_df.columns if "building" in c.lower()]
 
-# --------------------------------------------------
-# EMISSIONS DISTRIBUTION
-# --------------------------------------------------
+if building_cols:
 
-st.header("Campus Emissions Distribution")
+    building_column = building_cols[0]
 
-distribution = pd.DataFrame({
+    st.subheader("Building Electricity Consumption")
 
-    "Source":[
-        "Vehicles",
-        "Buses",
-        "Electricity"
-    ],
+    building_consumption = scope2_df.groupby(building_column)[consumption_column].sum()
 
-    "Emissions":[
-        vehicle_total,
-        bus_total,
-        electricity_total
-    ]
-})
+    st.bar_chart(building_consumption)
 
-st.bar_chart(distribution.set_index("Source"))
+# ---------------------------------------------------
+# TOTAL FOOTPRINT
+# ---------------------------------------------------
 
-st.dataframe(distribution)
+st.header("Total Campus Carbon Footprint")
 
-st.divider()
+total_emissions = total_vehicle_emissions + total_bus_emissions + total_scope2
 
-# --------------------------------------------------
-# FOOTER
-# --------------------------------------------------
+colA, colB, colC = st.columns(3)
 
-st.caption("SMU Sustainability Analytics Platform – Carbon Accounting Project")
+colA.metric("Vehicles", f"{total_vehicle_emissions:,.0f} kgCO2e")
+colB.metric("Buses", f"{total_bus_emissions:,.0f} kgCO2e")
+colC.metric("Electricity", f"{total_scope2:,.0f} kgCO2e")
+
+st.success(f"Total Campus Emissions: {total_emissions:,.0f} kgCO2e")
