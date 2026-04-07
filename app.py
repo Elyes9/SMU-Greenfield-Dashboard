@@ -2,35 +2,35 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 
-# ---------------------------------------------------
+# ------------------------------------------------
 # PAGE CONFIG
-# ---------------------------------------------------
+# ------------------------------------------------
 
 st.set_page_config(
-    page_title="SMU Carbon Accounting Dashboard",
+    page_title="SMU Carbon Dashboard",
     layout="wide"
 )
 
-# ---------------------------------------------------
-# LOGOS
-# ---------------------------------------------------
+# ------------------------------------------------
+# HEADER + LOGOS
+# ------------------------------------------------
 
-col1, col2, col3 = st.columns([1,3,1])
+c1, c2, c3 = st.columns([1,3,1])
 
-with col1:
-    st.image("LOGO_SMU_2023_FINAL.png", width=140)
+with c1:
+    st.image("LOGO_SMU_2023_FINAL.png", width=120)
 
-with col3:
-    st.image("carbon_jar_logo (1).jfif", width=140)
+with c3:
+    st.image("carbon_jar_logo (1).jfif", width=120)
 
 st.title("SMU Campus Carbon Accounting Dashboard")
-st.markdown("### Scope 1 and Scope 2 Greenhouse Gas Emissions Analysis")
+st.write("Scope 1 and Scope 2 Emissions Analysis – 2025")
 
 st.markdown("---")
 
-# ---------------------------------------------------
+# ------------------------------------------------
 # LOAD DATA
-# ---------------------------------------------------
+# ------------------------------------------------
 
 @st.cache_data
 def load_data():
@@ -48,9 +48,9 @@ def load_data():
 
 vehicles_df, buses_df, scope2_df = load_data()
 
-# ---------------------------------------------------
+# ------------------------------------------------
 # EMISSION FACTORS
-# ---------------------------------------------------
+# ------------------------------------------------
 
 CAR_EF_MIN = 2.20
 CAR_EF_MAX = 2.40
@@ -58,243 +58,171 @@ CAR_EF_MAX = 2.40
 BUS_EF_MIN = 2.60
 BUS_EF_MAX = 2.80
 
-GRID_EF = 0.42  # kgCO2/kWh
+GRID_EF = 0.42
 
-# ---------------------------------------------------
-# SCOPE 1 SECTION
-# ---------------------------------------------------
+# ------------------------------------------------
+# SCOPE 1
+# ------------------------------------------------
 
 st.header("Scope 1 – Direct Emissions")
 
-st.markdown("""
-Scope 1 emissions correspond to **direct greenhouse gas emissions from sources owned or controlled by the university**.
-This section focuses on **mobile combustion sources**, including **campus vehicles and buses**.
-""")
-
-# ===================================================
+# =================================================
 # VEHICLES
-# ===================================================
+# =================================================
 
-st.subheader("Mobile Combustion – Campus Vehicles")
+st.subheader("Mobile Combustion – Cars")
 
-st.markdown(f"""
-**Emission factor range used for vehicles:**
+fuel_col = vehicles_df.select_dtypes(include=np.number).columns[0]
 
-{CAR_EF_MIN} – {CAR_EF_MAX} kgCO₂ / litre of fuel
-""")
+vehicles_df[fuel_col] = pd.to_numeric(vehicles_df[fuel_col], errors="coerce")
 
-fuel_col = [c for c in vehicles_df.columns if "fuel" in c.lower() or "consumption" in c.lower()]
+vehicles_df["CO2_min"] = vehicles_df[fuel_col] * CAR_EF_MIN
+vehicles_df["CO2_max"] = vehicles_df[fuel_col] * CAR_EF_MAX
+vehicles_df["CO2"] = (vehicles_df["CO2_min"] + vehicles_df["CO2_max"]) / 2
 
-if fuel_col:
-    fuel_column = fuel_col[0]
-else:
-    fuel_column = vehicles_df.columns[-1]
+vehicle_total = vehicles_df["CO2"].sum()
 
-vehicles_df[fuel_column] = pd.to_numeric(vehicles_df[fuel_column], errors="coerce")
+st.metric("Vehicle Emissions", f"{vehicle_total:,.0f} kgCO2e")
 
-vehicles_df["CO2_min"] = vehicles_df[fuel_column] * CAR_EF_MIN
-vehicles_df["CO2_max"] = vehicles_df[fuel_column] * CAR_EF_MAX
-vehicles_df["CO2_mean"] = (vehicles_df["CO2_min"] + vehicles_df["CO2_max"]) / 2
+st.write("Vehicle CO₂ emissions calculated using emission factor range:")
+st.write(f"{CAR_EF_MIN} – {CAR_EF_MAX} kg CO₂ / L")
 
-total_vehicle_emissions = vehicles_df["CO2_mean"].sum()
+# PLOT VEHICLES
 
-st.metric("Total Vehicle Emissions", f"{total_vehicle_emissions:,.0f} kgCO2e")
-
-st.markdown("#### Vehicle Emissions")
-
-vehicle_plot = vehicles_df.set_index(vehicles_df.columns[0])["CO2_mean"]
+vehicle_plot = vehicles_df[["CO2"]]
 
 st.line_chart(vehicle_plot)
 
-st.markdown("---")
-
-# ===================================================
+# =================================================
 # BUSES
-# ===================================================
+# =================================================
 
-st.subheader("Mobile Combustion – Campus Buses")
+st.subheader("Mobile Combustion – Buses")
 
-st.markdown(f"""
-**Emission factor range used for buses:**
+fuel_col_bus = buses_df.select_dtypes(include=np.number).columns[0]
 
-{BUS_EF_MIN} – {BUS_EF_MAX} kgCO₂ / litre of fuel
-""")
+buses_df[fuel_col_bus] = pd.to_numeric(buses_df[fuel_col_bus], errors="coerce")
 
-fuel_col_bus = [c for c in buses_df.columns if "fuel" in c.lower() or "consumption" in c.lower()]
+buses_df["CO2_min"] = buses_df[fuel_col_bus] * BUS_EF_MIN
+buses_df["CO2_max"] = buses_df[fuel_col_bus] * BUS_EF_MAX
+buses_df["CO2"] = (buses_df["CO2_min"] + buses_df["CO2_max"]) / 2
 
-if fuel_col_bus:
-    bus_fuel_column = fuel_col_bus[0]
-else:
-    bus_fuel_column = buses_df.columns[-1]
+bus_total = buses_df["CO2"].sum()
 
-buses_df[bus_fuel_column] = pd.to_numeric(buses_df[bus_fuel_column], errors="coerce")
+st.metric("Bus Emissions", f"{bus_total:,.0f} kgCO2e")
 
-buses_df["CO2_min"] = buses_df[bus_fuel_column] * BUS_EF_MIN
-buses_df["CO2_max"] = buses_df[bus_fuel_column] * BUS_EF_MAX
-buses_df["CO2_mean"] = (buses_df["CO2_min"] + buses_df["CO2_max"]) / 2
+st.write("Bus CO₂ emissions calculated using emission factor range:")
+st.write(f"{BUS_EF_MIN} – {BUS_EF_MAX} kg CO₂ / L")
 
-total_bus_emissions = buses_df["CO2_mean"].sum()
+# BUS PLOT
 
-st.metric("Total Bus Emissions", f"{total_bus_emissions:,.0f} kgCO2e")
-
-st.markdown("#### Bus Emissions")
-
-bus_plot = buses_df.set_index(buses_df.columns[0])["CO2_mean"]
+bus_plot = buses_df[["CO2"]]
 
 st.line_chart(bus_plot)
 
 st.markdown("---")
 
-# ---------------------------------------------------
-# EMISSION FACTOR
-# ---------------------------------------------------
+# ------------------------------------------------
+# SCOPE 2
+# ------------------------------------------------
 
-EMISSION_FACTOR = 0.42
+st.header("Scope 2 – Electricity Consumption")
 
-# ---------------------------------------------------
-# LOAD DATA
-# ---------------------------------------------------
+num_cols = scope2_df.select_dtypes(include=np.number).columns
+consumption_col = num_cols[0]
 
-@st.cache_data
-def load_data():
+scope2_df[consumption_col] = pd.to_numeric(scope2_df[consumption_col], errors="coerce")
 
-    df = pd.read_csv("Scope 2 Emissions (4).csv")
+scope2_df["CO2"] = scope2_df[consumption_col] * GRID_EF
 
-    df.columns = df.columns.str.strip()
+electricity_total = scope2_df["CO2"].sum()
 
-    # Convert numeric columns
-    df["Consumption (kWh)"] = pd.to_numeric(df["Consumption (kWh)"], errors="coerce")
-    df["Number of meters"] = pd.to_numeric(df["Number of meters"], errors="coerce")
+st.metric("Electricity Emissions", f"{electricity_total:,.0f} kgCO2e")
 
-    # Fill missing values
-    df["Consumption (kWh)"] = df["Consumption (kWh)"].fillna(0)
-    df["Number of meters"] = df["Number of meters"].replace(0,1)
-
-    # Month order
-    months_order = [
-        "Jan","Feb","Mar","Apr","May","Jun",
-        "Jul","Aug","Sep","Oct","Nov","Dec"
-    ]
-
-    df["Period"] = pd.Categorical(df["Period"], categories=months_order, ordered=True)
-
-    df = df.sort_values("Period")
-
-    # Calculate emissions
-    df["CO2 Emissions (kg)"] = df["Consumption (kWh)"] * EMISSION_FACTOR
-
-    # Consumption per meter
-    df["Consumption per meter"] = df["Consumption (kWh)"] / df["Number of meters"]
-
-    return df
-
-
-df = load_data()
-
-# ---------------------------------------------------
-# KPIs
-# ---------------------------------------------------
-
-total_consumption = df["Consumption (kWh)"].sum()
-total_emissions = df["CO2 Emissions (kg)"].sum()
-avg_meter_consumption = df["Consumption per meter"].mean()
-
-c1, c2, c3 = st.columns(3)
-
-c1.metric("Total Electricity Consumption (kWh)", f"{total_consumption:,.0f}")
-c2.metric("Total CO₂ Emissions (kg)", f"{total_emissions:,.0f}")
-c3.metric("Average Consumption per Meter (kWh)", f"{avg_meter_consumption:,.1f}")
-
-st.markdown("---")
-
-# ---------------------------------------------------
-# MONTHLY CONSUMPTION
-# ---------------------------------------------------
+# ------------------------------------------------
+# MONTHLY TREND
+# ------------------------------------------------
 
 st.subheader("Monthly Electricity Consumption")
 
-st.line_chart(
-    df.set_index("Period")[["Consumption (kWh)"]]
-)
+month_cols = [c for c in scope2_df.columns if "month" in c.lower()]
 
-# ---------------------------------------------------
+if month_cols:
+
+    month_col = month_cols[0]
+
+    months = [
+        "January","February","March","April","May","June",
+        "July","August","September","October","November","December"
+    ]
+
+    scope2_df[month_col] = pd.Categorical(
+        scope2_df[month_col],
+        categories=months,
+        ordered=True
+    )
+
+    monthly_consumption = scope2_df.groupby(month_col)[consumption_col].sum().sort_index()
+
+    st.line_chart(monthly_consumption)
+
+# ------------------------------------------------
 # MONTHLY EMISSIONS
-# ---------------------------------------------------
+# ------------------------------------------------
 
-st.subheader("Monthly CO₂ Emissions")
+st.subheader("Monthly CO2 Emissions")
 
-st.bar_chart(
-    df.set_index("Period")[["CO2 Emissions (kg)"]]
-)
+if month_cols:
 
-# ---------------------------------------------------
-# NUMBER OF METERS
-# ---------------------------------------------------
+    monthly_emissions = scope2_df.groupby(month_col)["CO2"].sum().sort_index()
 
-st.subheader("Number of Electricity Meters")
+    st.bar_chart(monthly_emissions)
 
-st.line_chart(
-    df.set_index("Period")[["Number of meters"]]
-)
-
-# ---------------------------------------------------
-# CONSUMPTION PER METER
-# ---------------------------------------------------
-
-st.subheader("Consumption per Meter")
-
-st.bar_chart(
-    df.set_index("Period")[["Consumption per meter"]]
-)
-
-# ---------------------------------------------------
-# EMISSION SHARE
-# ---------------------------------------------------
-
-st.subheader("Monthly Share of Total Emissions")
-
-df["Emission Share (%)"] = (df["CO2 Emissions (kg)"] / total_emissions) * 100
-
-st.bar_chart(
-    df.set_index("Period")[["Emission Share (%)"]]
-)
-
-# ---------------------------------------------------
-# DATA TABLE
-# ---------------------------------------------------
-
-st.subheader("Dataset")
-
-st.dataframe(df)
-
-# ---------------------------------------------------
-# BUILDING COMPARISON
-# ---------------------------------------------------
+# ------------------------------------------------
+# BUILDING CONSUMPTION
+# ------------------------------------------------
 
 building_cols = [c for c in scope2_df.columns if "building" in c.lower()]
 
 if building_cols:
 
-    building_column = building_cols[0]
+    st.subheader("Electricity Consumption by Building")
 
-    st.subheader("Building Electricity Consumption")
+    building_col = building_cols[0]
 
-    building_consumption = scope2_df.groupby(building_column)[consumption_column].sum()
+    building_consumption = scope2_df.groupby(building_col)[consumption_col].sum()
 
     st.bar_chart(building_consumption)
 
-# ---------------------------------------------------
+st.markdown("---")
+
+# ------------------------------------------------
 # TOTAL FOOTPRINT
-# ---------------------------------------------------
+# ------------------------------------------------
 
 st.header("Total Campus Carbon Footprint")
 
-total_emissions = total_vehicle_emissions + total_bus_emissions + total_scope2
+total = vehicle_total + bus_total + electricity_total
 
-colA, colB, colC = st.columns(3)
+c1, c2, c3 = st.columns(3)
 
-colA.metric("Vehicles", f"{total_vehicle_emissions:,.0f} kgCO2e")
-colB.metric("Buses", f"{total_bus_emissions:,.0f} kgCO2e")
-colC.metric("Electricity", f"{total_scope2:,.0f} kgCO2e")
+c1.metric("Vehicles", f"{vehicle_total:,.0f}")
+c2.metric("Buses", f"{bus_total:,.0f}")
+c3.metric("Electricity", f"{electricity_total:,.0f}")
 
-st.success(f"Total Campus Emissions: {total_emissions:,.0f} kgCO2e")
+st.success(f"Total Campus Emissions: {total:,.0f} kgCO2e")
+
+# ------------------------------------------------
+# SCOPE COMPARISON
+# ------------------------------------------------
+
+st.subheader("Emission Sources Comparison")
+
+comparison = pd.DataFrame(
+    {
+        "Emissions":[vehicle_total, bus_total, electricity_total]
+    },
+    index=["Vehicles","Buses","Electricity"]
+)
+
+st.bar_chart(comparison)
