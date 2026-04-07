@@ -2,176 +2,218 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 
-# ---------------------------------------------------
+# --------------------------------------------------
 # PAGE CONFIG
-# ---------------------------------------------------
+# --------------------------------------------------
 
 st.set_page_config(
-    page_title="SMU Carbon Emissions Dashboard",
+    page_title="SMU Carbon Accounting Dashboard",
     layout="wide"
 )
 
-# ---------------------------------------------------
-# LOGOS
-# ---------------------------------------------------
+# --------------------------------------------------
+# HEADER WITH LOGOS
+# --------------------------------------------------
 
-col1, col2 = st.columns([1,5])
+col1, col2, col3 = st.columns([1,4,1])
 
 with col1:
     st.image("LOGO_SMU_2023_FINAL.png", width=120)
 
 with col2:
-    st.title("SMU Carbon Accounting Dashboard")
-    st.write("Monitoring Scope 1 and Scope 2 Emissions – Year 2025")
+    st.title("SMU Carbon Emissions Dashboard")
+    st.write("Executive Carbon Monitoring Platform – 2025")
 
-st.image("carbon_jar_logo (1).jfif", width=90)
+with col3:
+    st.image("carbon_jar_logo (1).jfif", width=100)
 
 st.divider()
 
-# ---------------------------------------------------
+# --------------------------------------------------
 # LOAD DATA
-# ---------------------------------------------------
+# --------------------------------------------------
 
 @st.cache_data
-def load_scope1_vehicle():
-    df = pd.read_csv("Mobile_Combustion_Vehicle.csv")
-    return df
+def load_data():
 
-@st.cache_data
-def load_scope1_bus():
-    df = pd.read_csv("Mobile_Combustion_Buses.csv")
-    return df
+    vehicle = pd.read_csv("Mobile_Combustion_Vehicle.csv")
+    buses = pd.read_csv("Mobile_Combustion_Buses.csv")
+    electricity = pd.read_csv("Scope 2 Emissions (3).csv")
 
-@st.cache_data
-def load_scope2():
-    df = pd.read_csv("Scope 2 Emissions (3).csv")
-    return df
+    vehicle.columns = vehicle.columns.str.strip()
+    buses.columns = buses.columns.str.strip()
+    electricity.columns = electricity.columns.str.strip()
+
+    return vehicle, buses, electricity
 
 
-vehicle_df = load_scope1_vehicle()
-bus_df = load_scope1_bus()
-scope2_df = load_scope2()
+vehicle_df, bus_df, scope2_df = load_data()
 
-# ---------------------------------------------------
-# CLEAN DATA
-# ---------------------------------------------------
+# --------------------------------------------------
+# HELPER FUNCTION
+# --------------------------------------------------
 
-for df in [vehicle_df, bus_df, scope2_df]:
-    df.columns = df.columns.str.strip()
+def numeric_data(df):
+    return df.select_dtypes(include=np.number)
 
-# ---------------------------------------------------
+# --------------------------------------------------
+# EXECUTIVE SUMMARY
+# --------------------------------------------------
+
+st.header("Executive Carbon Summary")
+
+vehicle_total = numeric_data(vehicle_df).sum().sum()
+bus_total = numeric_data(bus_df).sum().sum()
+electricity_total = numeric_data(scope2_df).sum().sum()
+
+total_emissions = vehicle_total + bus_total + electricity_total
+
+col1, col2, col3, col4 = st.columns(4)
+
+col1.metric("Vehicle Emissions", f"{vehicle_total:,.0f} kgCO2e")
+col2.metric("Bus Emissions", f"{bus_total:,.0f} kgCO2e")
+col3.metric("Electricity Emissions", f"{electricity_total:,.0f} kgCO2e")
+col4.metric("Total Campus Emissions", f"{total_emissions:,.0f} kgCO2e")
+
+st.divider()
+
+# --------------------------------------------------
 # SCOPE 1 SECTION
-# ---------------------------------------------------
+# --------------------------------------------------
 
-st.header("Scope 1 Emissions – Mobile Combustion")
+st.header("Scope 1 – Mobile Combustion")
 
-# ---------------------------------------------------
+# --------------------------------------------------
 # VEHICLES
-# ---------------------------------------------------
+# --------------------------------------------------
 
-st.subheader("Mobile Combustion – Cars")
+st.subheader("Cars Fleet Emissions")
 
-vehicle_numeric = vehicle_df.select_dtypes(include=np.number)
+vehicle_numeric = numeric_data(vehicle_df)
 
 if not vehicle_numeric.empty:
 
-    total_vehicle_emissions = vehicle_numeric.sum().sum()
+    st.write("Fuel Consumption / Emissions Analysis")
 
-    col1, col2 = st.columns(2)
-
-    col1.metric(
-        "Total Vehicle Emissions",
-        f"{total_vehicle_emissions:,.0f} kgCO2e"
-    )
-
-    # Plot
     vehicle_plot = vehicle_numeric.sum()
 
     st.bar_chart(vehicle_plot)
 
-else:
-    st.warning("No numeric emissions data detected in vehicle dataset")
+    st.dataframe(vehicle_df)
 
-st.dataframe(vehicle_df)
+else:
+    st.warning("No numeric vehicle data detected")
 
 st.divider()
 
-# ---------------------------------------------------
+# --------------------------------------------------
 # BUSES
-# ---------------------------------------------------
+# --------------------------------------------------
 
-st.subheader("Mobile Combustion – Buses")
+st.subheader("Campus Bus Fleet Emissions")
 
-bus_numeric = bus_df.select_dtypes(include=np.number)
+bus_numeric = numeric_data(bus_df)
 
 if not bus_numeric.empty:
-
-    total_bus_emissions = bus_numeric.sum().sum()
-
-    col1, col2 = st.columns(2)
-
-    col1.metric(
-        "Total Bus Emissions",
-        f"{total_bus_emissions:,.0f} kgCO2e"
-    )
 
     bus_plot = bus_numeric.sum()
 
     st.bar_chart(bus_plot)
 
-else:
-    st.warning("No numeric emissions data detected in bus dataset")
+    st.dataframe(bus_df)
 
-st.dataframe(bus_df)
+else:
+    st.warning("No numeric bus data detected")
 
 st.divider()
 
-# ---------------------------------------------------
+# --------------------------------------------------
 # SCOPE 2 SECTION
-# ---------------------------------------------------
+# --------------------------------------------------
 
-st.header("Scope 2 Emissions – Electricity Consumption")
+st.header("Scope 2 – Electricity Consumption")
 
-scope2_numeric = scope2_df.select_dtypes(include=np.number)
+scope2_numeric = numeric_data(scope2_df)
 
 if not scope2_numeric.empty:
 
-    total_electricity = scope2_numeric.sum().sum()
+    st.subheader("Electricity Consumption by Building")
 
-    col1, col2 = st.columns(2)
+    building_plot = scope2_numeric.sum()
 
-    col1.metric(
-        "Total Electricity Emissions",
-        f"{total_electricity:,.0f} kgCO2e"
-    )
+    st.bar_chart(building_plot)
 
-    # Electricity consumption plot
-    electricity_plot = scope2_numeric.sum()
-
-    st.bar_chart(electricity_plot)
+    st.dataframe(scope2_df)
 
 else:
-    st.warning("No numeric electricity data detected")
+    st.warning("No electricity data detected")
 
-st.dataframe(scope2_df)
+st.divider()
 
-# ---------------------------------------------------
-# COMBINED SUMMARY
-# ---------------------------------------------------
+# --------------------------------------------------
+# MONTHLY EMISSIONS TREND
+# --------------------------------------------------
 
-st.header("Overall Emissions Summary")
+st.header("Monthly Emissions Trend (2025)")
 
-vehicle_total = vehicle_numeric.sum().sum() if not vehicle_numeric.empty else 0
-bus_total = bus_numeric.sum().sum() if not bus_numeric.empty else 0
-scope2_total = scope2_numeric.sum().sum() if not scope2_numeric.empty else 0
+months = [
+"Jan","Feb","Mar","Apr","May","Jun",
+"Jul","Aug","Sep","Oct","Nov","Dec"
+]
 
-summary = pd.DataFrame({
-    "Category": ["Vehicles", "Buses", "Electricity"],
-    "Emissions (kgCO2e)": [vehicle_total, bus_total, scope2_total]
+monthly_data = {}
+
+for m in months:
+    for df in [vehicle_df, bus_df, scope2_df]:
+
+        if m in df.columns:
+            monthly_data[m] = monthly_data.get(m,0) + df[m].sum()
+
+if monthly_data:
+
+    monthly_df = pd.DataFrame({
+        "Month": list(monthly_data.keys()),
+        "Emissions": list(monthly_data.values())
+    })
+
+    monthly_df = monthly_df.set_index("Month")
+
+    st.line_chart(monthly_df)
+
+else:
+    st.info("Monthly columns not detected in dataset")
+
+st.divider()
+
+# --------------------------------------------------
+# EMISSIONS DISTRIBUTION
+# --------------------------------------------------
+
+st.header("Campus Emissions Distribution")
+
+distribution = pd.DataFrame({
+
+    "Source":[
+        "Vehicles",
+        "Buses",
+        "Electricity"
+    ],
+
+    "Emissions":[
+        vehicle_total,
+        bus_total,
+        electricity_total
+    ]
 })
 
-st.bar_chart(summary.set_index("Category"))
+st.bar_chart(distribution.set_index("Source"))
 
-st.dataframe(summary)
+st.dataframe(distribution)
 
-st.success("Dashboard successfully loaded.")
+st.divider()
+
+# --------------------------------------------------
+# FOOTER
+# --------------------------------------------------
+
+st.caption("SMU Sustainability Analytics Platform – Carbon Accounting Project")
