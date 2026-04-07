@@ -158,7 +158,7 @@ EMISSION_FACTOR = 0.42
 @st.cache_data
 def load_data():
 
-    df = pd.read_csv("Scope 2 Emissions (1).csv")
+    df = pd.read_csv("Scope 2 Emissions (4).csv")
 
     df.columns = df.columns.str.strip()
 
