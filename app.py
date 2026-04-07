@@ -27,7 +27,7 @@ st.markdown("---")
 
 @st.cache_data
 def load_scope2():
-    df = pd.read_csv("Scope 2 Emissions (3).csv")
+    df = pd.read_csv("Scope 2 Emissions (4).csv")
     df.columns = df.columns.str.strip()
     return df
 
