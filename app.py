@@ -146,61 +146,126 @@ st.line_chart(bus_plot)
 st.markdown("---")
 
 # ---------------------------------------------------
-# SCOPE 2 SECTION
+# EMISSION FACTOR
 # ---------------------------------------------------
 
-st.header("Scope 2 – Electricity Consumption")
+EMISSION_FACTOR = 0.42
 
-st.markdown("""
-Scope 2 emissions correspond to **indirect emissions from purchased electricity** consumed on campus.
-""")
+# ---------------------------------------------------
+# LOAD DATA
+# ---------------------------------------------------
 
-consumption_col = [c for c in scope2_df.columns if "kwh" in c.lower()]
+@st.cache_data
+def load_data():
 
-if consumption_col:
-    consumption_column = consumption_col[0]
-else:
-    consumption_column = scope2_df.columns[-1]
+    df = pd.read_csv("Scope 2 Emissions (1).csv")
 
-scope2_df[consumption_column] = pd.to_numeric(scope2_df[consumption_column], errors="coerce")
+    df.columns = df.columns.str.strip()
 
-scope2_df["CO2"] = scope2_df[consumption_column] * GRID_EF
+    # Convert numeric columns
+    df["Consumption (kWh)"] = pd.to_numeric(df["Consumption (kWh)"], errors="coerce")
+    df["Number of meters"] = pd.to_numeric(df["Number of meters"], errors="coerce")
 
-total_scope2 = scope2_df["CO2"].sum()
+    # Fill missing values
+    df["Consumption (kWh)"] = df["Consumption (kWh)"].fillna(0)
+    df["Number of meters"] = df["Number of meters"].replace(0,1)
 
-st.metric("Total Electricity Emissions", f"{total_scope2:,.0f} kgCO2e")
+    # Month order
+    months_order = [
+        "Jan","Feb","Mar","Apr","May","Jun",
+        "Jul","Aug","Sep","Oct","Nov","Dec"
+    ]
 
-st.markdown("### Monthly Electricity Consumption")
+    df["Period"] = pd.Categorical(df["Period"], categories=months_order, ordered=True)
 
-month_col = [c for c in scope2_df.columns if "month" in c.lower()]
+    df = df.sort_values("Period")
 
-if month_col:
-    month_column = month_col[0]
-else:
-    month_column = scope2_df.columns[0]
+    # Calculate emissions
+    df["CO2 Emissions (kg)"] = df["Consumption (kWh)"] * EMISSION_FACTOR
 
-months_order = [
-"January","February","March","April","May","June",
-"July","August","September","October","November","December"
-]
+    # Consumption per meter
+    df["Consumption per meter"] = df["Consumption (kWh)"] / df["Number of meters"]
 
-scope2_df[month_column] = pd.Categorical(
-    scope2_df[month_column],
-    categories=months_order,
-    ordered=True
-)
+    return df
 
-monthly_consumption = scope2_df.groupby(month_column)[consumption_column].sum().sort_index()
 
-st.line_chart(monthly_consumption)
+df = load_data()
 
-st.markdown("### Monthly CO2 Emissions")
+# ---------------------------------------------------
+# KPIs
+# ---------------------------------------------------
 
-monthly_emissions = scope2_df.groupby(month_column)["CO2"].sum().sort_index()
+total_consumption = df["Consumption (kWh)"].sum()
+total_emissions = df["CO2 Emissions (kg)"].sum()
+avg_meter_consumption = df["Consumption per meter"].mean()
 
-st.line_chart(monthly_emissions)
+c1, c2, c3 = st.columns(3)
+
+c1.metric("Total Electricity Consumption (kWh)", f"{total_consumption:,.0f}")
+c2.metric("Total CO₂ Emissions (kg)", f"{total_emissions:,.0f}")
+c3.metric("Average Consumption per Meter (kWh)", f"{avg_meter_consumption:,.1f}")
 
 st.markdown("---")
+
+# ---------------------------------------------------
+# MONTHLY CONSUMPTION
+# ---------------------------------------------------
+
+st.subheader("Monthly Electricity Consumption")
+
+st.line_chart(
+    df.set_index("Period")[["Consumption (kWh)"]]
+)
+
+# ---------------------------------------------------
+# MONTHLY EMISSIONS
+# ---------------------------------------------------
+
+st.subheader("Monthly CO₂ Emissions")
+
+st.bar_chart(
+    df.set_index("Period")[["CO2 Emissions (kg)"]]
+)
+
+# ---------------------------------------------------
+# NUMBER OF METERS
+# ---------------------------------------------------
+
+st.subheader("Number of Electricity Meters")
+
+st.line_chart(
+    df.set_index("Period")[["Number of meters"]]
+)
+
+# ---------------------------------------------------
+# CONSUMPTION PER METER
+# ---------------------------------------------------
+
+st.subheader("Consumption per Meter")
+
+st.bar_chart(
+    df.set_index("Period")[["Consumption per meter"]]
+)
+
+# ---------------------------------------------------
+# EMISSION SHARE
+# ---------------------------------------------------
+
+st.subheader("Monthly Share of Total Emissions")
+
+df["Emission Share (%)"] = (df["CO2 Emissions (kg)"] / total_emissions) * 100
+
+st.bar_chart(
+    df.set_index("Period")[["Emission Share (%)"]]
+)
+
+# ---------------------------------------------------
+# DATA TABLE
+# ---------------------------------------------------
+
+st.subheader("Dataset")
+
+st.dataframe(df)
 
 # ---------------------------------------------------
 # BUILDING COMPARISON
