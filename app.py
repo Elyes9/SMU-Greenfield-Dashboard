@@ -3,90 +3,324 @@ import pandas as pd
 import numpy as np
 import altair as alt
 
+# ─────────────────────────────────────────────────────────────────────────────
+# PAGE CONFIG
+# ─────────────────────────────────────────────────────────────────────────────
 st.set_page_config(
-    page_title="Carbon Accounting Dashboard",
+    page_title="GHG Carbon Monitor · 2025",
     page_icon="🌿",
     layout="wide",
     initial_sidebar_state="expanded",
 )
 
+# ─────────────────────────────────────────────────────────────────────────────
+# DESIGN SYSTEM — dark refined theme
+# ─────────────────────────────────────────────────────────────────────────────
 st.markdown("""
 <style>
-    .block-container { padding-top: 1.4rem; padding-bottom: 1rem; }
-    [data-testid="stMetric"] {
-        background: white;
-        border: 0.5px solid #e2e8e4;
-        border-radius: 10px;
-        padding: 13px 16px;
-    }
-    .badge-s1 {
-        background:#E6F1FB; color:#0C447C;
-        padding:3px 10px; border-radius:6px;
-        font-size:12px; font-weight:600; display:inline-block;
-    }
-    .badge-s2 {
-        background:#E1F5EE; color:#085041;
-        padding:3px 10px; border-radius:6px;
-        font-size:12px; font-weight:600; display:inline-block;
-    }
-    .insight-box {
-        background:#f7faf8;
-        border-left:3px solid #1D9E75;
-        border-radius:6px;
-        padding:10px 14px;
-        font-size:13px;
-        margin-bottom:8px;
-        line-height:1.6;
-    }
-    .section-label {
-        font-size:11px; font-weight:600; letter-spacing:.06em;
-        text-transform:uppercase; color:#888; margin-bottom:6px;
-    }
+  @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500&display=swap');
+
+  html, body, [class*="css"] {
+    font-family: 'DM Sans', sans-serif;
+  }
+
+  /* ── App background ── */
+  .stApp {
+    background: #0E1117;
+    color: #E8EDF2;
+  }
+  .block-container {
+    padding: 1.6rem 2.2rem 2rem 2.2rem;
+    max-width: 100%;
+  }
+
+  /* ── Sidebar ── */
+  [data-testid="stSidebar"] {
+    background: #13181F;
+    border-right: 1px solid #1E2730;
+  }
+  [data-testid="stSidebar"] * {
+    color: #C8D4DF !important;
+  }
+  [data-testid="stSidebar"] .stNumberInput input,
+  [data-testid="stSidebar"] .stSelectbox select {
+    background: #1A2230 !important;
+    border: 1px solid #2A3850 !important;
+    color: #E8EDF2 !important;
+    border-radius: 6px !important;
+  }
+
+  /* ── Metric cards ── */
+  [data-testid="stMetric"] {
+    background: linear-gradient(135deg, #141B26 0%, #0F1520 100%);
+    border: 1px solid #1E2D3D;
+    border-radius: 12px;
+    padding: 16px 20px;
+    position: relative;
+    overflow: hidden;
+  }
+  [data-testid="stMetric"]::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, #00C9A7, #0096FF);
+  }
+  [data-testid="stMetricLabel"] {
+    font-family: 'DM Mono', monospace !important;
+    font-size: 10px !important;
+    letter-spacing: .12em !important;
+    text-transform: uppercase !important;
+    color: #6B8BA4 !important;
+  }
+  [data-testid="stMetricValue"] {
+    font-family: 'Syne', sans-serif !important;
+    font-size: 1.55rem !important;
+    font-weight: 700 !important;
+    color: #E8EDF2 !important;
+  }
+  [data-testid="stMetricDelta"] {
+    font-family: 'DM Mono', monospace !important;
+    font-size: 11px !important;
+    color: #00C9A7 !important;
+  }
+
+  /* ── Tabs ── */
+  [data-testid="stTabs"] [data-baseweb="tab-list"] {
+    background: transparent !important;
+    border-bottom: 1px solid #1E2D3D !important;
+    gap: 4px;
+  }
+  [data-testid="stTabs"] [data-baseweb="tab"] {
+    font-family: 'DM Mono', monospace !important;
+    font-size: 11px !important;
+    letter-spacing: .08em !important;
+    text-transform: uppercase !important;
+    color: #4E6A82 !important;
+    background: transparent !important;
+    border: none !important;
+    padding: 10px 18px !important;
+    border-radius: 6px 6px 0 0 !important;
+    transition: color .2s;
+  }
+  [data-testid="stTabs"] [aria-selected="true"] {
+    color: #00C9A7 !important;
+    border-bottom: 2px solid #00C9A7 !important;
+    background: rgba(0,201,167,.06) !important;
+  }
+
+  /* ── Section labels ── */
+  .sec-label {
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    font-weight: 500;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    color: #4E6A82;
+    margin: 18px 0 8px 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .sec-label::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: linear-gradient(90deg, #1E2D3D 0%, transparent 100%);
+  }
+
+  /* ── Page title ── */
+  .dash-title {
+    font-family: 'Syne', sans-serif;
+    font-size: 2rem;
+    font-weight: 800;
+    color: #E8EDF2;
+    letter-spacing: -.02em;
+    line-height: 1.1;
+    margin-bottom: 2px;
+  }
+  .dash-sub {
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    color: #4E6A82;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    margin-bottom: 1.4rem;
+  }
+
+  /* ── Insight cards ── */
+  .insight-card {
+    background: linear-gradient(135deg, #141B26 0%, #0F1B24 100%);
+    border: 1px solid #1E2D3D;
+    border-left: 3px solid #00C9A7;
+    border-radius: 10px;
+    padding: 14px 16px;
+    font-size: 13px;
+    color: #A8BDC9;
+    line-height: 1.65;
+    height: 100%;
+  }
+  .insight-card strong {
+    display: block;
+    font-family: 'Syne', sans-serif;
+    font-weight: 600;
+    font-size: 14px;
+    color: #E8EDF2;
+    margin-bottom: 4px;
+  }
+  .insight-card.orange { border-left-color: #FF8C42; }
+  .insight-card.blue   { border-left-color: #0096FF; }
+
+  /* ── Badges ── */
+  .badge-s1 {
+    background: rgba(0,150,255,.15);
+    color: #4AACFF;
+    border: 1px solid rgba(0,150,255,.25);
+    padding: 3px 10px;
+    border-radius: 20px;
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    display: inline-block;
+  }
+  .badge-s2 {
+    background: rgba(0,201,167,.12);
+    color: #00C9A7;
+    border: 1px solid rgba(0,201,167,.22);
+    padding: 3px 10px;
+    border-radius: 20px;
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    display: inline-block;
+  }
+
+  /* ── Divider ── */
+  hr {
+    border: none !important;
+    border-top: 1px solid #1E2D3D !important;
+    margin: 1rem 0 !important;
+  }
+
+  /* ── DataFrames ── */
+  [data-testid="stDataFrame"] {
+    border: 1px solid #1E2D3D;
+    border-radius: 10px;
+    overflow: hidden;
+  }
+
+  /* ── Caption ── */
+  .stCaption {
+    font-family: 'DM Mono', monospace !important;
+    font-size: 10px !important;
+    color: #3D5467 !important;
+    letter-spacing: .05em !important;
+  }
+
+  /* ── Checkbox ── */
+  [data-testid="stCheckbox"] label {
+    font-family: 'DM Mono', monospace !important;
+    font-size: 11px !important;
+    letter-spacing: .04em !important;
+  }
+
+  /* ── Scrollbar ── */
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: #0E1117; }
+  ::-webkit-scrollbar-thumb { background: #1E2D3D; border-radius: 3px; }
 </style>
 """, unsafe_allow_html=True)
 
 # ─────────────────────────────────────────────────────────────────────────────
-# CONSTANTS & MONTHS
+# ALTAIR DARK THEME
 # ─────────────────────────────────────────────────────────────────────────────
+DARK_BG   = "#0E1117"
+DARK_CARD = "#141B26"
+GRID_COL  = "#1E2D3D"
+TEXT_COL  = "#6B8BA4"
+TEXT_MAIN = "#C8D4DF"
+
+def dark_theme():
+    return {
+        "config": {
+            "background": "transparent",
+            "view": {"fill": "transparent", "stroke": "transparent"},
+            "axis": {
+                "domainColor": GRID_COL,
+                "gridColor": GRID_COL,
+                "tickColor": GRID_COL,
+                "labelColor": TEXT_COL,
+                "titleColor": TEXT_COL,
+                "labelFont": "DM Mono, monospace",
+                "titleFont": "DM Mono, monospace",
+                "labelFontSize": 10,
+                "titleFontSize": 10,
+                "gridOpacity": 0.6,
+            },
+            "legend": {
+                "labelColor": TEXT_MAIN,
+                "titleColor": TEXT_COL,
+                "labelFont": "DM Mono, monospace",
+                "titleFont": "DM Mono, monospace",
+                "labelFontSize": 10,
+                "titleFontSize": 10,
+            },
+            "title": {"color": TEXT_MAIN, "font": "Syne, sans-serif"},
+            "point": {"filled": True},
+            "mark": {"tooltip": True},
+        }
+    }
+
+alt.themes.register("dark_carbon", dark_theme)
+alt.themes.enable("dark_carbon")
+
+# ─────────────────────────────────────────────────────────────────────────────
+# COLOUR PALETTE
+# ─────────────────────────────────────────────────────────────────────────────
+C_S1    = "#0096FF"   # blue  — Scope 1
+C_S2    = "#00C9A7"   # teal  — Scope 2
+C_TOT   = "#FF8C42"   # amber — Total
+C_CUM   = "#B57BFF"   # violet — Cumulative
+C_ROLL  = "#FF4FA0"   # pink  — Rolling avg
+C_PROJ  = "#FFD166"   # gold  — Projection
+C_TARGET= "#EF4444"   # red   — Target
+C_INT   = "#06D6A0"   # mint  — Intensity
+
 MONTHS     = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"]
 MONTH_NUMS = list(range(1, 13))
-COLOR_S1   = "#378ADD"
-COLOR_S2   = "#1D9E75"
-COLOR_TOT  = "#D4537E"
-COLOR_CUM  = "#9B59B6"
-COLOR_INT  = "#E67E22"
-COLOR_AVG  = "#E74C3C"
 
 # ─────────────────────────────────────────────────────────────────────────────
 # SIDEBAR
 # ─────────────────────────────────────────────────────────────────────────────
 with st.sidebar:
-    st.markdown("### ⚙️ Emission factors")
+    st.markdown("### ⚙️ Emission Factors")
     ef_diesel   = st.number_input("Diesel (kgCO₂e / L)",   value=2.68,  step=0.01,  format="%.3f")
     ef_gasoline = st.number_input("Gasoline (kgCO₂e / L)", value=2.31,  step=0.01,  format="%.3f")
     ef_bus_km   = st.number_input("Bus/Van (kgCO₂e / km)", value=0.089, step=0.001, format="%.4f")
     ef_grid     = st.number_input("Grid (kgCO₂e / kWh)",   value=0.267, step=0.001, format="%.4f")
 
-    st.divider()
-    st.markdown("### 🎛️ Chart options")
-    show_rolling  = st.checkbox("Show 3-month rolling average",  value=True)
-    show_cum      = st.checkbox("Show cumulative curve",          value=True)
-    show_target   = st.checkbox("Show reduction target (−10%)",   value=True)
-    show_proj     = st.checkbox("Show linear projection",         value=True)
+    st.markdown("---")
+    st.markdown("### 🎛️ Chart overlays")
+    show_rolling = st.checkbox("3-month rolling average", value=True)
+    show_target  = st.checkbox("Reduction target (−10%)", value=True)
+    show_proj    = st.checkbox("Linear projection",        value=True)
+    show_band    = st.checkbox("Confidence band",          value=True)
+    interp       = st.selectbox("Line interpolation", ["monotone","linear","step","basis"], index=0)
 
-    st.divider()
-    st.markdown("**Framework:** GHG Protocol Corporate Standard")
-    st.markdown("**Reporting year:** 2025")
-    st.markdown("**Grid:** Tunisia (STEG)")
-    st.markdown('<span class="badge-s1">Scope 1</span> Mobile combustion',     unsafe_allow_html=True)
-    st.markdown("")
-    st.markdown('<span class="badge-s2">Scope 2</span> Purchased electricity', unsafe_allow_html=True)
+    st.markdown("---")
+    st.markdown("**Framework** · GHG Protocol")
+    st.markdown("**Year** · 2025")
+    st.markdown("**Grid** · Tunisia STEG")
+    st.markdown('<span class="badge-s1">Scope 1</span> &nbsp; Mobile combustion', unsafe_allow_html=True)
+    st.markdown('<span class="badge-s2">Scope 2</span> &nbsp; Purchased electricity', unsafe_allow_html=True)
 
 # ─────────────────────────────────────────────────────────────────────────────
 # RAW DATA
 # ─────────────────────────────────────────────────────────────────────────────
 elec_kwh = np.array([28429,30287,30262,19625,22097,37937,
-                     48569,43843,38143,28139,23532,23039])
+                     48569,43843,38143,28139,23532,23039], dtype=float)
 
 vehicle_raw = pd.DataFrame({
     "Date":      ["Feb 3, 2025","Feb 6, 2025","Dec 31, 2025"],
@@ -121,7 +355,7 @@ elec_df["MWh"]   = elec_df["kWh"] / 1000
 elec_df["tCO2e"] = elec_df["kWh"] * ef_grid / 1000
 
 # ─────────────────────────────────────────────────────────────────────────────
-# AGGREGATES & DERIVED SERIES
+# COMPUTED SERIES
 # ─────────────────────────────────────────────────────────────────────────────
 total_s2  = elec_df["tCO2e"].sum()
 total_s1v = vehicle_raw["tCO2e"].sum()
@@ -130,100 +364,163 @@ total_s1  = total_s1v + total_s1b
 total_all = total_s1 + total_s2
 total_kwh = int(elec_kwh.sum())
 
-# Monthly Scope 1
 s1_monthly = np.zeros(12)
 for _, row in vehicle_raw.iterrows():
     s1_monthly[int(row["Month_num"])-1] += row["tCO2e"]
 for _, row in bus_raw.iterrows():
     s1_monthly[int(row["Month_num"])-1] += row["tCO2e"]
 
-s2_monthly = elec_df["tCO2e"].values
+s2_monthly    = elec_df["tCO2e"].values.copy()
 total_monthly = s1_monthly + s2_monthly
 
-# Rolling 3-month averages
-def rolling3(arr):
-    result = []
-    for i in range(len(arr)):
-        window = arr[max(0, i-1):i+2]
-        result.append(window.mean())
-    return np.array(result)
+def rolling_n(arr, n=3):
+    s = pd.Series(arr)
+    return s.rolling(n, center=True, min_periods=1).mean().values
 
-roll_s1  = rolling3(s1_monthly)
-roll_s2  = rolling3(s2_monthly)
-roll_tot = rolling3(total_monthly)
+roll_s1    = rolling_n(s1_monthly)
+roll_s2    = rolling_n(s2_monthly)
+roll_total = rolling_n(total_monthly)
 
-# Cumulative
+# Rolling std for confidence band
+roll_std  = rolling_n(np.array([abs(v - total_monthly.mean()) for v in total_monthly]))
+
 cum_s1    = np.cumsum(s1_monthly)
 cum_s2    = np.cumsum(s2_monthly)
 cum_total = np.cumsum(total_monthly)
 
-# Intensity (kgCO2e per kWh consumed — proxy for Scope 2 intensity)
-intensity = (s2_monthly * 1000) / elec_kwh  # = ef_grid, constant unless EF changes
+intensity = s2_monthly * 1000 / elec_kwh  # kgCO2e/kWh
 
-# Linear projection from existing trend (Scope 2, which has full 12 months)
-x_fit = np.arange(12)
-slope, intercept = np.polyfit(x_fit, s2_monthly, 1)
-proj_s2 = slope * x_fit + intercept
+# Linear trend on Scope 2
+x_fit = np.arange(12, dtype=float)
+slope2, intercept2 = np.polyfit(x_fit, s2_monthly, 1)
+proj_s2 = slope2 * x_fit + intercept2
 
-# Target line: 10% below annual average
-target_monthly = np.full(12, (total_monthly.mean()) * 0.90)
+# Linear trend on Total
+slopeT, interceptT = np.polyfit(x_fit, total_monthly, 1)
+proj_total = slopeT * x_fit + interceptT
 
-# Month-over-month change %
-mom_change = np.concatenate([[0], np.diff(total_monthly) / total_monthly[:-1] * 100])
+# Target: −10% from mean per month
+target_monthly = np.full(12, total_monthly.mean() * 0.90)
 
-# Build master monthly DataFrame
+# MoM change
+mom_change = np.concatenate([[np.nan],
+    np.diff(total_monthly) / total_monthly[:-1] * 100])
+
+# Seasonal index (ratio to 12-month mean)
+seasonal_idx = total_monthly / total_monthly.mean()
+
+# Efficiency score: lower = better (inverse normalised intensity)
+efficiency = 1 - (intensity - intensity.min()) / (intensity.max() - intensity.min() + 1e-9)
+
+# Confidence band (±0.5 std dev of rolling window)
+band_upper = roll_total + roll_std * 0.5
+band_lower = np.maximum(roll_total - roll_std * 0.5, 0)
+
+# Master DataFrame
 trend_df = pd.DataFrame({
-    "Month":      MONTHS,
-    "Month_num":  MONTH_NUMS,
-    "Scope1":     s1_monthly,
-    "Scope2":     s2_monthly,
-    "Total":      total_monthly,
-    "Roll_S1":    roll_s1,
-    "Roll_S2":    roll_s2,
-    "Roll_Total": roll_tot,
-    "Cum_S1":     cum_s1,
-    "Cum_S2":     cum_s2,
-    "Cum_Total":  cum_total,
-    "Intensity":  intensity,
-    "Proj_S2":    proj_s2,
-    "Target":     target_monthly,
-    "MoM_Change": mom_change,
-    "kWh":        elec_kwh.astype(float),
+    "Month":       MONTHS,
+    "Month_num":   MONTH_NUMS,
+    "Scope1":      s1_monthly,
+    "Scope2":      s2_monthly,
+    "Total":       total_monthly,
+    "Roll_S1":     roll_s1,
+    "Roll_S2":     roll_s2,
+    "Roll_Total":  roll_total,
+    "Band_Upper":  band_upper,
+    "Band_Lower":  band_lower,
+    "Cum_S1":      cum_s1,
+    "Cum_S2":      cum_s2,
+    "Cum_Total":   cum_total,
+    "Intensity":   intensity,
+    "Proj_S2":     proj_s2,
+    "Proj_Total":  proj_total,
+    "Target":      target_monthly,
+    "MoM_Change":  mom_change,
+    "Seasonal":    seasonal_idx,
+    "Efficiency":  efficiency,
+    "kWh":         elec_kwh,
+    "Pct_Annual":  cum_total / total_all * 100,
 })
 trend_df["Month"] = pd.Categorical(trend_df["Month"], categories=MONTHS, ordered=True)
 
 # ─────────────────────────────────────────────────────────────────────────────
-# HELPER — Altair base
+# CHART HELPERS
 # ─────────────────────────────────────────────────────────────────────────────
-def base_chart(df, h=280):
-    return alt.Chart(df).properties(height=h)
+def mx():
+    return alt.X("Month:N", sort=MONTHS, title=None,
+                 axis=alt.Axis(labelAngle=0, labelFontSize=10,
+                               tickColor="transparent"))
 
-def month_axis():
-    return alt.X("Month:N", sort=MONTHS, title=None, axis=alt.Axis(labelAngle=0))
+def smooth_line(df, y_col, color, width=2.5, dash=None, opacity=1.0, label=None):
+    props = dict(color=color, strokeWidth=width, opacity=opacity,
+                 interpolate=interp)
+    if dash:
+        props["strokeDash"] = dash
+    encode = dict(
+        x=mx(),
+        y=alt.Y(f"{y_col}:Q", title="tCO₂e"),
+        tooltip=[alt.Tooltip("Month:N"),
+                 alt.Tooltip(f"{y_col}:Q", format=".4f", title=label or y_col)],
+    )
+    return alt.Chart(df).mark_line(**props).encode(**encode)
+
+def glow_point(df, y_col, color, size=60):
+    return alt.Chart(df).mark_point(
+        color=color, filled=True, size=size, opacity=0.9
+    ).encode(
+        x=mx(),
+        y=alt.Y(f"{y_col}:Q"),
+        tooltip=[alt.Tooltip("Month:N"),
+                 alt.Tooltip(f"{y_col}:Q", format=".4f")],
+    )
+
+def area_chart(df, y_col, color, opacity=0.12, y_title="tCO₂e"):
+    return alt.Chart(df).mark_area(
+        color=color, opacity=opacity,
+        line={"color": color, "strokeWidth": 2, "opacity": 0.9},
+        interpolate=interp,
+    ).encode(
+        x=mx(),
+        y=alt.Y(f"{y_col}:Q", title=y_title),
+        tooltip=[alt.Tooltip("Month:N"),
+                 alt.Tooltip(f"{y_col}:Q", format=".4f", title=y_title)],
+    )
+
+def rule_line(val, color, dash=[5,3]):
+    return alt.Chart(pd.DataFrame({"y":[val]})).mark_rule(
+        color=color, strokeDash=dash, strokeWidth=1.2, opacity=0.7
+    ).encode(y="y:Q")
+
+def h_props(h=300):
+    return {"height": h}
 
 # ─────────────────────────────────────────────────────────────────────────────
-# HEADER + KPIs
+# HEADER
 # ─────────────────────────────────────────────────────────────────────────────
-st.markdown("## 🌿 Carbon Accounting Dashboard — 2025")
-st.caption("GHG Protocol · Scope 1 (Mobile Combustion) · Scope 2 (Purchased Electricity) · Tunisia")
+st.markdown('<div class="dash-title">🌿 GHG Carbon Monitor</div>', unsafe_allow_html=True)
+st.markdown('<div class="dash-sub">GHG Protocol · Scope 1 & 2 · Tunisia · Reporting Year 2025</div>', unsafe_allow_html=True)
 
-k1, k2, k3, k4, k5 = st.columns(5)
-k1.metric("🌍 Grand total",        f"{total_all:.2f} tCO₂e",   "Scope 1 + 2")
-k2.metric("🚗 Scope 1",           f"{total_s1:.4f} tCO₂e",    "Mobile combustion")
-k3.metric("⚡ Scope 2",            f"{total_s2:.2f} tCO₂e",    "Electricity")
-k4.metric("💡 Total electricity",  f"{total_kwh/1000:.1f} MWh","15 meters · 12 mo.")
-k5.metric("📉 Avg intensity",      f"{intensity.mean():.3f}",   "kgCO₂e / kWh")
-st.divider()
+# KPI STRIP
+k1, k2, k3, k4, k5, k6 = st.columns(6)
+k1.metric("Grand Total",       f"{total_all:.2f}",        "tCO₂e · S1+S2")
+k2.metric("Scope 1",           f"{total_s1:.4f}",         "tCO₂e · mobile")
+k3.metric("Scope 2",           f"{total_s2:.2f}",         "tCO₂e · electricity")
+k4.metric("Total Electricity", f"{total_kwh/1000:.1f} MWh","15 meters")
+k5.metric("Avg Intensity",     f"{intensity.mean():.3f}", "kgCO₂e / kWh")
+k6.metric("S2 Share",          f"{total_s2/total_all*100:.1f}%", "of total emissions")
+
+st.markdown("---")
 
 # ─────────────────────────────────────────────────────────────────────────────
 # TABS
 # ─────────────────────────────────────────────────────────────────────────────
-tab1, tab2, tab3, tab4, tab5 = st.tabs([
-    "📊 Overview",
-    "📈 Trend & Curves",
-    "🔄 Cumulative",
-    "🚗 Scope 1 Detail",
-    "⚡ Scope 2 Detail",
+tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
+    "◉ Overview",
+    "〰 Trend & Curves",
+    "∫ Cumulative",
+    "⧖ Seasonality",
+    "🚗 Scope 1",
+    "⚡ Scope 2",
 ])
 
 
@@ -231,54 +528,56 @@ tab1, tab2, tab3, tab4, tab5 = st.tabs([
 # TAB 1 — OVERVIEW
 # ══════════════════════════════════════════════════════════════════════════════
 with tab1:
-    c_left, c_right = st.columns(2)
+    col_l, col_r = st.columns([1, 1.6])
 
-    # Arc chart
-    with c_left:
-        st.markdown('<p class="section-label">Emissions split by scope</p>', unsafe_allow_html=True)
+    with col_l:
+        st.markdown('<div class="sec-label">Emissions split by scope</div>', unsafe_allow_html=True)
         donut_df = pd.DataFrame({
-            "Scope": ["Scope 1 — Mobile Combustion","Scope 2 — Electricity"],
+            "Scope": ["Scope 1 · Mobile Combustion", "Scope 2 · Electricity"],
             "tCO2e": [round(total_s1,4), round(total_s2,4)],
             "Pct":   [round(total_s1/total_all*100,1), round(total_s2/total_all*100,1)],
         })
-        arc = alt.Chart(donut_df).mark_arc(innerRadius=72, outerRadius=130).encode(
+        arc = alt.Chart(donut_df).mark_arc(innerRadius=75, outerRadius=130, padAngle=0.02).encode(
             theta=alt.Theta("tCO2e:Q"),
             color=alt.Color("Scope:N",
                 scale=alt.Scale(domain=donut_df["Scope"].tolist(),
-                                range=[COLOR_S1, COLOR_S2]),
-                legend=alt.Legend(orient="bottom", labelLimit=400)),
+                                range=[C_S1, C_S2]),
+                legend=alt.Legend(orient="bottom", labelLimit=350,
+                                  symbolType="circle", symbolSize=80)),
             tooltip=[alt.Tooltip("Scope:N"),
                      alt.Tooltip("tCO2e:Q", format=".4f", title="tCO₂e"),
                      alt.Tooltip("Pct:Q",   format=".1f",  title="%")],
-        ).properties(height=290)
+        ).properties(height=300)
         st.altair_chart(arc, use_container_width=True)
 
-    # Horizontal stacked overview bar by month
-    with c_right:
-        st.markdown('<p class="section-label">Monthly scope breakdown</p>', unsafe_allow_html=True)
+    with col_r:
+        st.markdown('<div class="sec-label">Monthly stacked emissions — Scope 1 + Scope 2</div>', unsafe_allow_html=True)
         ov_long = trend_df[["Month","Scope1","Scope2"]].melt(
             id_vars="Month", value_vars=["Scope1","Scope2"],
-            var_name="Scope", value_name="tCO2e"
-        )
+            var_name="Scope", value_name="tCO2e")
         ov_long["Scope"] = ov_long["Scope"].map({"Scope1":"Scope 1","Scope2":"Scope 2"})
-        ov_bar = alt.Chart(ov_long).mark_bar(
-            cornerRadiusTopLeft=3, cornerRadiusTopRight=3
+
+        stacked_bars = alt.Chart(ov_long).mark_bar(
+            cornerRadiusTopLeft=4, cornerRadiusTopRight=4, width={"band": 0.7}
         ).encode(
-            x=month_axis(),
+            x=mx(),
             y=alt.Y("tCO2e:Q", stack="zero", title="tCO₂e"),
             color=alt.Color("Scope:N",
                 scale=alt.Scale(domain=["Scope 1","Scope 2"],
-                                range=[COLOR_S1, COLOR_S2]),
+                                range=[C_S1, C_S2]),
                 legend=alt.Legend(orient="top", title=None)),
             tooltip=[alt.Tooltip("Month:N"), alt.Tooltip("Scope:N"),
                      alt.Tooltip("tCO2e:Q", format=".4f", title="tCO₂e")],
-        ).properties(height=290)
-        st.altair_chart(ov_bar, use_container_width=True)
+        )
+        total_line = smooth_line(trend_df, "Total", C_TOT, 2, label="Total")
+        total_pts  = glow_point(trend_df, "Total", C_TOT, 45)
+        st.altair_chart((stacked_bars + total_line + total_pts).properties(**h_props(300)),
+                        use_container_width=True)
 
-    # Scope 1 source bar
-    st.markdown('<p class="section-label">Scope 1 — source breakdown</p>', unsafe_allow_html=True)
+    # Source breakdown
+    st.markdown('<div class="sec-label">Scope 1 — emission source breakdown</div>', unsafe_allow_html=True)
     src_df = pd.DataFrame({
-        "Source":   ["Diesel (fleet)","Gasoline (Feb)","Gasoline (Dec)","Bus/Van trips"],
+        "Source":   ["Diesel (fleet)","Gasoline Feb","Gasoline Dec","Bus/Van trips"],
         "tCO2e":    [
             vehicle_raw.loc[vehicle_raw["Fuel_type"]=="Diesel","tCO2e"].sum(),
             vehicle_raw.iloc[1]["tCO2e"],
@@ -294,35 +593,34 @@ with tab1:
         y=alt.Y("Source:N", sort="-x", title=None),
         color=alt.Color("Category:N",
             scale=alt.Scale(domain=["Vehicle fuel","Distance-based"],
-                            range=[COLOR_S1,"#5DCAA5"]),
+                            range=[C_S1, C_S2]),
             legend=alt.Legend(orient="right")),
-        tooltip=[alt.Tooltip("Source:N"), alt.Tooltip("tCO2e:Q", format=".5f", title="tCO₂e")],
-    ).properties(height=160)
-    src_txt = src_bar.mark_text(align="left", dx=5, fontSize=11).encode(
-        text=alt.Text("tCO2e:Q", format=".4f")
-    )
-    st.altair_chart(src_bar + src_txt, use_container_width=True)
+        tooltip=[alt.Tooltip("Source:N"),
+                 alt.Tooltip("tCO2e:Q", format=".5f", title="tCO₂e")],
+    ).properties(height=150)
+    src_txt = src_bar.mark_text(align="left", dx=5, fontSize=10,
+                                 color=TEXT_MAIN, font="DM Mono, monospace").encode(
+        text=alt.Text("tCO2e:Q", format=".4f"))
+    st.altair_chart(src_bar+src_txt, use_container_width=True)
 
-    # Insights row
     ia, ib, ic = st.columns(3)
     with ia:
-        st.markdown(f"""<div class="insight-box">
-            <b>🚗 Diesel fleet dominant</b><br>
-            {vehicle_raw.iloc[0]['tCO2e']:.3f} tCO₂e from 1,741 L diesel in February —
-            the single largest Scope 1 event.
+        st.markdown(f"""<div class="insight-card blue">
+            <strong>🚗 Diesel dominates Scope 1</strong>
+            {vehicle_raw.iloc[0]['tCO2e']:.3f} tCO₂e from 1,742 L diesel in February —
+            the single largest mobile combustion event in the year.
         </div>""", unsafe_allow_html=True)
     with ib:
-        st.markdown(f"""<div class="insight-box">
-            <b>⚡ July peak load</b><br>
-            48,569 kWh → {elec_df.iloc[6]['tCO2e']:.2f} tCO₂e.
-            Summer cooling drives a <b>{(elec_kwh[6]/elec_kwh.mean()-1)*100:.0f}%</b>
-            spike above annual average.
+        st.markdown(f"""<div class="insight-card">
+            <strong>⚡ July electricity surge</strong>
+            +{(elec_kwh[6]/elec_kwh.mean()-1)*100:.0f}% above annual average.
+            Summer cooling drives 48,569 kWh → {elec_df.iloc[6]['tCO2e']:.2f} tCO₂e.
         </div>""", unsafe_allow_html=True)
     with ic:
-        st.markdown(f"""<div class="insight-box">
-            <b>📊 Scope 2 dominates</b><br>
+        st.markdown(f"""<div class="insight-card orange">
+            <strong>📊 Scope 2 is the lever</strong>
             Electricity = <b>{total_s2/total_all*100:.1f}%</b> of total GHG.
-            Renewable procurement or efficiency measures would have the highest impact.
+            Renewable procurement offers the highest decarbonisation potential.
         </div>""", unsafe_allow_html=True)
 
 
@@ -330,509 +628,493 @@ with tab1:
 # TAB 2 — TREND & CURVES
 # ══════════════════════════════════════════════════════════════════════════════
 with tab2:
+    # ── Chart A: Full multi-line with all overlays ──────────────────────────
+    st.markdown('<div class="sec-label">All emission series — monthly tCO₂e</div>', unsafe_allow_html=True)
 
-    # ── Chart 1: Multi-line total + scope lines + optional rolling + target ──
-    st.markdown('<p class="section-label">Monthly emissions — all series</p>', unsafe_allow_html=True)
-
-    color_scale_main = alt.Scale(
-        domain=["Scope 1","Scope 2","Total"],
-        range=[COLOR_S1, COLOR_S2, COLOR_TOT]
+    chart_A = (
+        smooth_line(trend_df, "Scope1", C_S1,  2.0, label="Scope 1") +
+        glow_point(trend_df,  "Scope1", C_S1,  40) +
+        smooth_line(trend_df, "Scope2", C_S2,  2.0, label="Scope 2") +
+        glow_point(trend_df,  "Scope2", C_S2,  40) +
+        smooth_line(trend_df, "Total",  C_TOT, 2.5, label="Total") +
+        glow_point(trend_df,  "Total",  C_TOT, 55)
     )
-    dash_scale_main = alt.Scale(
-        domain=["Scope 1","Scope 2","Total"],
-        range=[[1,0],[1,0],[6,3]]
-    )
-
-    long_main = trend_df[["Month","Scope1","Scope2","Total"]].melt(
-        id_vars="Month", value_vars=["Scope1","Scope2","Total"],
-        var_name="Series", value_name="tCO2e"
-    )
-    long_main["Series"] = long_main["Series"].map(
-        {"Scope1":"Scope 1","Scope2":"Scope 2","Total":"Total"}
-    )
-
-    lines_main = alt.Chart(long_main).mark_line(strokeWidth=2).encode(
-        x=month_axis(),
-        y=alt.Y("tCO2e:Q", title="tCO₂e"),
-        color=alt.Color("Series:N", scale=color_scale_main,
-                        legend=alt.Legend(orient="top", title=None)),
-        strokeDash=alt.StrokeDash("Series:N", scale=dash_scale_main),
-        tooltip=[alt.Tooltip("Month:N"), alt.Tooltip("Series:N"),
-                 alt.Tooltip("tCO2e:Q", format=".4f", title="tCO₂e")],
-    )
-    pts_main = alt.Chart(long_main).mark_point(filled=True, size=55).encode(
-        x=month_axis(),
-        y=alt.Y("tCO2e:Q"),
-        color=alt.Color("Series:N", scale=color_scale_main),
-        tooltip=[alt.Tooltip("Month:N"), alt.Tooltip("Series:N"),
-                 alt.Tooltip("tCO2e:Q", format=".4f", title="tCO₂e")],
-    )
-    chart_main = lines_main + pts_main
-
     if show_rolling:
-        long_roll = trend_df[["Month","Roll_S1","Roll_S2","Roll_Total"]].melt(
-            id_vars="Month", value_vars=["Roll_S1","Roll_S2","Roll_Total"],
-            var_name="Series", value_name="tCO2e"
-        )
-        long_roll["Series"] = long_roll["Series"].map(
-            {"Roll_S1":"Rolling avg S1","Roll_S2":"Rolling avg S2","Roll_Total":"Rolling avg Total"}
-        )
-        roll_lines = alt.Chart(long_roll).mark_line(
-            strokeDash=[4,3], strokeWidth=1.5, opacity=0.7
+        chart_A = chart_A + smooth_line(trend_df, "Roll_S1",    C_S1,  1.2, [4,3], 0.6, "Roll. avg S1")
+        chart_A = chart_A + smooth_line(trend_df, "Roll_S2",    C_S2,  1.2, [4,3], 0.6, "Roll. avg S2")
+        chart_A = chart_A + smooth_line(trend_df, "Roll_Total", C_ROLL,1.8, [3,2], 0.8, "Roll. avg Total")
+    if show_band:
+        band = alt.Chart(trend_df).mark_area(
+            color=C_ROLL, opacity=0.06, interpolate=interp
         ).encode(
-            x=month_axis(),
-            y=alt.Y("tCO2e:Q"),
-            color=alt.Color("Series:N",
-                scale=alt.Scale(
-                    domain=["Rolling avg S1","Rolling avg S2","Rolling avg Total"],
-                    range=[COLOR_S1, COLOR_S2, COLOR_TOT]
-                ),
-                legend=alt.Legend(orient="top", title="3-mo rolling")),
-            tooltip=[alt.Tooltip("Month:N"), alt.Tooltip("Series:N"),
-                     alt.Tooltip("tCO2e:Q", format=".4f", title="tCO₂e")],
+            x=mx(),
+            y=alt.Y("Band_Lower:Q", title="tCO₂e"),
+            y2="Band_Upper:Q",
         )
-        chart_main = chart_main + roll_lines
-
+        chart_A = band + chart_A
     if show_target:
-        target_rule = alt.Chart(trend_df).mark_line(
-            color=COLOR_AVG, strokeDash=[2,2], strokeWidth=1.5
-        ).encode(
-            x=month_axis(),
-            y=alt.Y("Target:Q"),
-            tooltip=[alt.Tooltip("Target:Q", format=".3f", title="Target (−10%)")],
-        )
-        target_label = alt.Chart(pd.DataFrame({
-            "Month":["Dec"], "Target":[target_monthly[-1]],
-            "label":["Target (−10%)"]
-        })).mark_text(align="right", dx=-4, dy=-8, fontSize=10, color=COLOR_AVG).encode(
-            x=alt.X("Month:N", sort=MONTHS),
-            y=alt.Y("Target:Q"),
-            text="label:N"
-        )
-        chart_main = chart_main + target_rule + target_label
-
+        chart_A = chart_A + rule_line(target_monthly[0], C_TARGET)
+        lbl_tgt = alt.Chart(pd.DataFrame({
+            "Month":["Dec"],"y":[target_monthly[-1]],"t":["← target −10%"]}
+        )).mark_text(align="right", dx=-4, dy=-9, fontSize=9,
+                     color=C_TARGET, font="DM Mono, monospace").encode(
+            x=alt.X("Month:N", sort=MONTHS), y="y:Q", text="t:N")
+        chart_A = chart_A + lbl_tgt
     if show_proj:
-        proj_line = alt.Chart(trend_df).mark_line(
-            color=COLOR_INT, strokeDash=[3,2], strokeWidth=1.5, opacity=0.8
-        ).encode(
-            x=month_axis(),
-            y=alt.Y("Proj_S2:Q"),
-            tooltip=[alt.Tooltip("Month:N"),
-                     alt.Tooltip("Proj_S2:Q", format=".3f", title="Linear projection S2")],
-        )
-        chart_main = chart_main + proj_line
+        chart_A = chart_A + smooth_line(trend_df, "Proj_Total", C_PROJ, 1.5, [5,3], 0.7, "Trend projection")
 
-    st.altair_chart(chart_main.properties(height=340), use_container_width=True)
+    st.altair_chart(chart_A.properties(**h_props(360)), use_container_width=True)
 
-    # ── Chart 2: Area chart — stacked Scope 1 + Scope 2 ──────────────────────
-    st.markdown('<p class="section-label">Stacked area — scope contributions</p>', unsafe_allow_html=True)
-
+    # ── Chart B: Stacked area ────────────────────────────────────────────────
+    st.markdown('<div class="sec-label">Stacked area — scope contribution over time</div>', unsafe_allow_html=True)
     area_long = trend_df[["Month","Scope1","Scope2"]].melt(
         id_vars="Month", value_vars=["Scope1","Scope2"],
-        var_name="Scope", value_name="tCO2e"
-    )
+        var_name="Scope", value_name="tCO2e")
     area_long["Scope"] = area_long["Scope"].map({"Scope1":"Scope 1","Scope2":"Scope 2"})
-
-    area = alt.Chart(area_long).mark_area(opacity=0.75).encode(
-        x=month_axis(),
+    area_stacked = alt.Chart(area_long).mark_area(
+        opacity=0.8, interpolate=interp
+    ).encode(
+        x=mx(),
         y=alt.Y("tCO2e:Q", stack="zero", title="tCO₂e"),
         color=alt.Color("Scope:N",
-            scale=alt.Scale(domain=["Scope 1","Scope 2"],
-                            range=[COLOR_S1, COLOR_S2]),
+            scale=alt.Scale(domain=["Scope 1","Scope 2"], range=[C_S1, C_S2]),
             legend=alt.Legend(orient="top", title=None)),
         tooltip=[alt.Tooltip("Month:N"), alt.Tooltip("Scope:N"),
                  alt.Tooltip("tCO2e:Q", format=".4f", title="tCO₂e")],
     )
-    area_line = alt.Chart(trend_df).mark_line(
-        color=COLOR_TOT, strokeWidth=2, point=True
-    ).encode(
-        x=month_axis(),
-        y=alt.Y("Total:Q"),
-        tooltip=[alt.Tooltip("Month:N"),
-                 alt.Tooltip("Total:Q", format=".4f", title="Total tCO₂e")],
-    )
-    st.altair_chart((area + area_line).properties(height=280), use_container_width=True)
+    total_overlay = smooth_line(trend_df, "Total", C_TOT, 2, label="Total") + \
+                    glow_point(trend_df, "Total", C_TOT, 40)
+    st.altair_chart((area_stacked + total_overlay).properties(**h_props(260)),
+                    use_container_width=True)
 
-    # ── Chart 3: Month-over-month % change ───────────────────────────────────
-    st.markdown('<p class="section-label">Month-over-month change in total emissions (%)</p>', unsafe_allow_html=True)
+    col_c, col_d = st.columns(2)
 
-    trend_df["MoM_Color"] = np.where(trend_df["MoM_Change"] >= 0, "Increase", "Decrease")
-    mom_bar = alt.Chart(trend_df[trend_df["Month_num"] > 1]).mark_bar(
-        cornerRadiusTopLeft=3, cornerRadiusTopRight=3,
-        cornerRadiusBottomLeft=3, cornerRadiusBottomRight=3
-    ).encode(
-        x=month_axis(),
-        y=alt.Y("MoM_Change:Q", title="% change vs prior month",
-                axis=alt.Axis(format=".1f")),
-        color=alt.Color("MoM_Color:N",
-            scale=alt.Scale(domain=["Increase","Decrease"],
-                            range=["#E24B4A","#1D9E75"]),
-            legend=alt.Legend(orient="top", title=None)),
-        tooltip=[alt.Tooltip("Month:N"),
-                 alt.Tooltip("MoM_Change:Q", format=".1f", title="MoM change %")],
-    )
-    zero_rule = alt.Chart(pd.DataFrame({"y":[0]})).mark_rule(
-        color="#999", strokeWidth=0.8
-    ).encode(y="y:Q")
-    st.altair_chart((mom_bar + zero_rule).properties(height=220), use_container_width=True)
+    with col_c:
+        # ── Chart C: MoM % change ─────────────────────────────────────────
+        st.markdown('<div class="sec-label">Month-over-month Δ total emissions (%)</div>', unsafe_allow_html=True)
+        mom_df = trend_df.dropna(subset=["MoM_Change"]).copy()
+        mom_df["Dir"] = np.where(mom_df["MoM_Change"] >= 0, "▲ Increase", "▼ Decrease")
+        mom_bar = alt.Chart(mom_df).mark_bar(
+            cornerRadiusTopLeft=3, cornerRadiusTopRight=3,
+            cornerRadiusBottomLeft=3, cornerRadiusBottomRight=3,
+            width={"band": 0.65}
+        ).encode(
+            x=mx(),
+            y=alt.Y("MoM_Change:Q", title="% vs prior month",
+                    axis=alt.Axis(format=".1f")),
+            color=alt.Color("Dir:N",
+                scale=alt.Scale(domain=["▲ Increase","▼ Decrease"],
+                                range=[C_TARGET, C_S2]),
+                legend=alt.Legend(orient="top", title=None)),
+            tooltip=[alt.Tooltip("Month:N"),
+                     alt.Tooltip("MoM_Change:Q", format=".1f", title="MoM %")],
+        )
+        # smooth zero line
+        zero = alt.Chart(pd.DataFrame({"y":[0]})).mark_rule(
+            color=GRID_COL, strokeWidth=1.2).encode(y="y:Q")
+        mom_line = smooth_line(mom_df, "MoM_Change", C_ROLL, 1.5,
+                               dash=[3,2], opacity=0.6, label="Trend")
+        st.altair_chart((mom_bar + zero + mom_line).properties(**h_props(250)),
+                        use_container_width=True)
 
-    # ── Chart 4: Scope 2 emissions vs electricity consumption scatter ─────────
-    st.markdown('<p class="section-label">Electricity consumption vs Scope 2 emissions (scatter)</p>', unsafe_allow_html=True)
-
-    scatter = alt.Chart(trend_df).mark_circle(size=80, opacity=0.85).encode(
-        x=alt.X("kWh:Q", title="Monthly electricity (kWh)"),
-        y=alt.Y("Scope2:Q", title="tCO₂e (Scope 2)"),
-        color=alt.Color("Month:N",
-            scale=alt.Scale(scheme="viridis"),
-            legend=alt.Legend(orient="right", title="Month")),
-        tooltip=[alt.Tooltip("Month:N"),
-                 alt.Tooltip("kWh:Q", format=",.0f", title="kWh"),
-                 alt.Tooltip("Scope2:Q", format=".3f", title="tCO₂e")],
-    )
-    reg_line = scatter.transform_regression(
-        "kWh","Scope2", method="linear"
-    ).mark_line(color=COLOR_AVG, strokeDash=[4,2], strokeWidth=1.5)
-    st.altair_chart((scatter + reg_line).properties(height=260), use_container_width=True)
+    with col_d:
+        # ── Chart D: Scope 2 scatter + regression ─────────────────────────
+        st.markdown('<div class="sec-label">kWh consumption vs Scope 2 emissions</div>', unsafe_allow_html=True)
+        scatter = alt.Chart(trend_df).mark_circle(size=90, opacity=0.85).encode(
+            x=alt.X("kWh:Q", title="Monthly kWh",
+                    axis=alt.Axis(format=",.0f")),
+            y=alt.Y("Scope2:Q", title="tCO₂e (S2)"),
+            color=alt.Color("Month:N",
+                scale=alt.Scale(scheme="plasma"),
+                legend=alt.Legend(orient="right", title="Month",
+                                  labelFontSize=9, symbolSize=60)),
+            tooltip=[alt.Tooltip("Month:N"),
+                     alt.Tooltip("kWh:Q", format=",.0f", title="kWh"),
+                     alt.Tooltip("Scope2:Q", format=".3f", title="tCO₂e")],
+        )
+        reg = scatter.transform_regression("kWh","Scope2").mark_line(
+            color=C_PROJ, strokeDash=[5,3], strokeWidth=1.8)
+        st.altair_chart((scatter + reg).properties(**h_props(250)),
+                        use_container_width=True)
 
 
 # ══════════════════════════════════════════════════════════════════════════════
 # TAB 3 — CUMULATIVE
 # ══════════════════════════════════════════════════════════════════════════════
 with tab3:
-    st.markdown('<p class="section-label">Cumulative CO₂e — year-to-date build-up</p>', unsafe_allow_html=True)
+    # ── Chart A: Cumulative lines ────────────────────────────────────────────
+    st.markdown('<div class="sec-label">Year-to-date cumulative tCO₂e build-up</div>', unsafe_allow_html=True)
 
-    # ── Chart 1: Cumulative line chart ───────────────────────────────────────
-    cum_long = trend_df[["Month","Cum_S1","Cum_S2","Cum_Total"]].melt(
-        id_vars="Month", value_vars=["Cum_S1","Cum_S2","Cum_Total"],
-        var_name="Series", value_name="tCO2e"
+    cum_chart = (
+        area_chart(trend_df, "Cum_Total", C_CUM, 0.10) +
+        smooth_line(trend_df, "Cum_Total",  C_CUM, 2.5, label="Total cumul.") +
+        glow_point(trend_df,  "Cum_Total",  C_CUM, 55) +
+        smooth_line(trend_df, "Cum_S2",     C_S2,  2.0, label="S2 cumul.") +
+        glow_point(trend_df,  "Cum_S2",     C_S2,  40) +
+        smooth_line(trend_df, "Cum_S1",     C_S1,  1.8, [4,3], 0.9, "S1 cumul.") +
+        glow_point(trend_df,  "Cum_S1",     C_S1,  40)
     )
-    cum_long["Series"] = cum_long["Series"].map(
-        {"Cum_S1":"Scope 1 cumul.","Cum_S2":"Scope 2 cumul.","Cum_Total":"Total cumul."}
-    )
+    # End-of-year annotations
+    ey = trend_df[trend_df["Month"]=="Dec"].copy()
+    for col, color, label in [("Cum_Total",C_CUM,"Total"),("Cum_S2",C_S2,"S2"),("Cum_S1",C_S1,"S1")]:
+        ann = alt.Chart(ey).mark_text(
+            align="right", dx=-6, dy=-11, fontSize=10,
+            color=color, font="DM Mono, monospace"
+        ).encode(x=mx(), y=alt.Y(f"{col}:Q"),
+                 text=alt.Text(f"{col}:Q", format=".2f"))
+        cum_chart = cum_chart + ann
 
-    cum_color = alt.Scale(
-        domain=["Scope 1 cumul.","Scope 2 cumul.","Total cumul."],
-        range=[COLOR_S1, COLOR_S2, COLOR_CUM]
-    )
-    cum_line = alt.Chart(cum_long).mark_line(strokeWidth=2.5).encode(
-        x=month_axis(),
-        y=alt.Y("tCO2e:Q", title="Cumulative tCO₂e"),
-        color=alt.Color("Series:N", scale=cum_color,
-                        legend=alt.Legend(orient="top", title=None)),
-        tooltip=[alt.Tooltip("Month:N"), alt.Tooltip("Series:N"),
-                 alt.Tooltip("tCO2e:Q", format=".3f", title="Cumul. tCO₂e")],
-    )
-    cum_pts = alt.Chart(cum_long).mark_point(filled=True, size=60).encode(
-        x=month_axis(),
-        y=alt.Y("tCO2e:Q"),
-        color=alt.Color("Series:N", scale=cum_color),
-    )
+    st.altair_chart(cum_chart.properties(**h_props(340)), use_container_width=True)
 
-    # Annotate year-end values
-    year_end = cum_long[cum_long["Month"]=="Dec"].copy()
-    cum_annot = alt.Chart(year_end).mark_text(
-        align="right", dx=-6, dy=-10, fontSize=11, fontWeight="normal"
-    ).encode(
-        x=month_axis(),
-        y=alt.Y("tCO2e:Q"),
-        color=alt.Color("Series:N", scale=cum_color, legend=None),
-        text=alt.Text("tCO2e:Q", format=".2f"),
-    )
-    st.altair_chart((cum_line + cum_pts + cum_annot).properties(height=320), use_container_width=True)
+    col_l, col_r = st.columns(2)
 
-    # ── Chart 2: Cumulative area ─────────────────────────────────────────────
-    st.markdown('<p class="section-label">Cumulative area — Scope 1 vs Scope 2 build-up</p>', unsafe_allow_html=True)
+    with col_l:
+        # ── Chart B: % of annual total reached ───────────────────────────
+        st.markdown('<div class="sec-label">Year-to-date progress — % of annual total</div>', unsafe_allow_html=True)
+        pct_area = alt.Chart(trend_df).mark_area(
+            color=C_CUM, opacity=0.12, interpolate=interp,
+            line={"color": C_CUM, "strokeWidth": 2}
+        ).encode(
+            x=mx(),
+            y=alt.Y("Pct_Annual:Q", title="% of annual total",
+                    scale=alt.Scale(domain=[0,105])),
+            tooltip=[alt.Tooltip("Month:N"),
+                     alt.Tooltip("Pct_Annual:Q", format=".1f", title="% annual")],
+        )
+        pct_pts = glow_point(trend_df, "Pct_Annual", C_CUM, 50)
+        half_rule = rule_line(50, TEXT_COL, [4,3])
+        full_rule  = rule_line(100, C_TARGET, [2,2])
+        st.altair_chart((pct_area + pct_pts + half_rule + full_rule).properties(**h_props(260)),
+                        use_container_width=True)
+        st.caption("Dashed grey = 50% mark · Dashed red = 100% (year-end)")
 
-    cum_area_long = trend_df[["Month","Cum_S1","Cum_S2"]].melt(
-        id_vars="Month", value_vars=["Cum_S1","Cum_S2"],
-        var_name="Scope", value_name="tCO2e"
-    )
-    cum_area_long["Scope"] = cum_area_long["Scope"].map(
-        {"Cum_S1":"Scope 1","Cum_S2":"Scope 2"}
-    )
-    cum_area = alt.Chart(cum_area_long).mark_area(opacity=0.7).encode(
-        x=month_axis(),
-        y=alt.Y("tCO2e:Q", stack=None, title="Cumulative tCO₂e"),
-        color=alt.Color("Scope:N",
-            scale=alt.Scale(domain=["Scope 1","Scope 2"], range=[COLOR_S1, COLOR_S2]),
-            legend=alt.Legend(orient="top", title=None)),
-        tooltip=[alt.Tooltip("Month:N"), alt.Tooltip("Scope:N"),
-                 alt.Tooltip("tCO2e:Q", format=".3f", title="Cumul. tCO₂e")],
-    )
-    st.altair_chart(cum_area.properties(height=260), use_container_width=True)
+    with col_r:
+        # ── Chart C: Cumulative area unstacked ───────────────────────────
+        st.markdown('<div class="sec-label">Cumulative area — S1 vs S2 overlap</div>', unsafe_allow_html=True)
+        cum_ovlp = (
+            area_chart(trend_df, "Cum_S2", C_S2, 0.25) +
+            area_chart(trend_df, "Cum_S1", C_S1, 0.35) +
+            smooth_line(trend_df, "Cum_S2", C_S2, 2.0, label="S2 cumul.") +
+            smooth_line(trend_df, "Cum_S1", C_S1, 2.0, label="S1 cumul.")
+        )
+        st.altair_chart(cum_ovlp.properties(**h_props(260)), use_container_width=True)
 
-    # ── Chart 3: % of annual total reached each month ────────────────────────
-    st.markdown('<p class="section-label">Year-to-date progress — % of annual total reached</p>', unsafe_allow_html=True)
-
-    trend_df["Pct_of_Annual"] = trend_df["Cum_Total"] / total_all * 100
-    pct_area = alt.Chart(trend_df).mark_area(
-        color=COLOR_CUM, opacity=0.25, line={"color": COLOR_CUM, "strokeWidth":2}
-    ).encode(
-        x=month_axis(),
-        y=alt.Y("Pct_of_Annual:Q", title="% of annual total",
-                scale=alt.Scale(domain=[0, 100])),
-        tooltip=[alt.Tooltip("Month:N"),
-                 alt.Tooltip("Pct_of_Annual:Q", format=".1f", title="% of annual")],
-    )
-    half_rule = alt.Chart(pd.DataFrame({"y":[50]})).mark_rule(
-        color="#999", strokeDash=[3,2], strokeWidth=1
-    ).encode(y="y:Q")
-    pct_pts = alt.Chart(trend_df).mark_point(
-        color=COLOR_CUM, filled=True, size=55
-    ).encode(
-        x=month_axis(),
-        y=alt.Y("Pct_of_Annual:Q"),
-        tooltip=[alt.Tooltip("Month:N"),
-                 alt.Tooltip("Pct_of_Annual:Q", format=".1f", title="% of annual")],
-    )
-    st.altair_chart((pct_area + half_rule + pct_pts).properties(height=240),
-                    use_container_width=True)
-
-    # ── Summary table ─────────────────────────────────────────────────────────
-    st.markdown('<p class="section-label">Cumulative data table</p>', unsafe_allow_html=True)
-    cum_table = trend_df[["Month","Scope1","Scope2","Total","Cum_S1","Cum_S2","Cum_Total","Pct_of_Annual"]].copy()
-    cum_table.columns = ["Month","S1 (t)","S2 (t)","Total (t)",
-                         "Cum S1","Cum S2","Cum Total","% of annual"]
-    for col in ["S1 (t)","S2 (t)","Total (t)","Cum S1","Cum S2","Cum Total"]:
-        cum_table[col] = cum_table[col].map("{:.4f}".format)
-    cum_table["% of annual"] = cum_table["% of annual"].map("{:.1f}%".format)
-    st.dataframe(cum_table, use_container_width=True, hide_index=True)
+    # ── Table ────────────────────────────────────────────────────────────────
+    st.markdown('<div class="sec-label">Cumulative data table</div>', unsafe_allow_html=True)
+    cum_tbl = trend_df[["Month","Scope1","Scope2","Total",
+                         "Cum_S1","Cum_S2","Cum_Total","Pct_Annual"]].copy()
+    cum_tbl.columns = ["Month","S1 (t)","S2 (t)","Total (t)",
+                        "Cum S1","Cum S2","Cum Total","% Annual"]
+    for c in ["S1 (t)","S2 (t)","Total (t)","Cum S1","Cum S2","Cum Total"]:
+        cum_tbl[c] = cum_tbl[c].map("{:.4f}".format)
+    cum_tbl["% Annual"] = cum_tbl["% Annual"].map("{:.1f}%".format)
+    st.dataframe(cum_tbl, use_container_width=True, hide_index=True)
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# TAB 4 — SCOPE 1 DETAIL
+# TAB 4 — SEASONALITY
 # ══════════════════════════════════════════════════════════════════════════════
 with tab4:
+    st.markdown('<div class="sec-label">Seasonal index — ratio to monthly mean (1.0 = average)</div>', unsafe_allow_html=True)
+
+    col_a, col_b = st.columns(2)
+    with col_a:
+        sea_area = alt.Chart(trend_df).mark_area(
+            color=C_TOT, opacity=0.13, interpolate=interp,
+            line={"color": C_TOT, "strokeWidth": 2.5}
+        ).encode(
+            x=mx(),
+            y=alt.Y("Seasonal:Q", title="Seasonal index",
+                    scale=alt.Scale(domain=[0, trend_df["Seasonal"].max()*1.2])),
+            tooltip=[alt.Tooltip("Month:N"),
+                     alt.Tooltip("Seasonal:Q", format=".3f", title="Index")],
+        )
+        sea_pts = glow_point(trend_df, "Seasonal", C_TOT, 55)
+        avg_rule = rule_line(1.0, TEXT_COL, [4,3])
+        st.altair_chart((sea_area + sea_pts + avg_rule).properties(**h_props(270)),
+                        use_container_width=True)
+        st.caption("Values > 1.0 indicate above-average emission months")
+
+    with col_b:
+        # Efficiency score chart
+        st.markdown('<div class="sec-label">Carbon efficiency score (higher = better)</div>', unsafe_allow_html=True)
+        eff_area = alt.Chart(trend_df).mark_area(
+            color=C_S2, opacity=0.15, interpolate=interp,
+            line={"color": C_S2, "strokeWidth": 2.5}
+        ).encode(
+            x=mx(),
+            y=alt.Y("Efficiency:Q", title="Efficiency (0–1)",
+                    scale=alt.Scale(domain=[0,1.1])),
+            tooltip=[alt.Tooltip("Month:N"),
+                     alt.Tooltip("Efficiency:Q", format=".3f", title="Efficiency")],
+        )
+        eff_pts = glow_point(trend_df, "Efficiency", C_S2, 55)
+        eff_roll = rolling_n(efficiency)
+        trend_df["Roll_Eff"] = eff_roll
+        eff_roll_line = smooth_line(trend_df, "Roll_Eff", C_ROLL, 1.8,
+                                    [4,2], 0.7, "Rolling avg")
+        st.altair_chart((eff_area + eff_pts + eff_roll_line).properties(**h_props(270)),
+                        use_container_width=True)
+        st.caption("Based on inverse normalised Scope 2 intensity")
+
+    # ── Heatmap-style: monthly contribution % by scope ───────────────────────
+    st.markdown('<div class="sec-label">Monthly share of annual totals — Scope 1 vs Scope 2</div>', unsafe_allow_html=True)
+    share_data = []
+    for i, m in enumerate(MONTHS):
+        share_data.append({"Month": m, "Scope": "Scope 1",
+                           "Share": s1_monthly[i]/total_s1*100 if total_s1>0 else 0})
+        share_data.append({"Month": m, "Scope": "Scope 2",
+                           "Share": s2_monthly[i]/total_s2*100})
+    share_df = pd.DataFrame(share_data)
+    share_df["Month"] = pd.Categorical(share_df["Month"], categories=MONTHS, ordered=True)
+
+    share_bar = alt.Chart(share_df).mark_bar(
+        cornerRadiusTopLeft=3, cornerRadiusTopRight=3, width={"band": 0.6}
+    ).encode(
+        x=mx(),
+        y=alt.Y("Share:Q", title="% of annual scope total"),
+        color=alt.Color("Scope:N",
+            scale=alt.Scale(domain=["Scope 1","Scope 2"], range=[C_S1, C_S2]),
+            legend=alt.Legend(orient="top", title=None)),
+        xOffset=alt.XOffset("Scope:N"),
+        tooltip=[alt.Tooltip("Month:N"), alt.Tooltip("Scope:N"),
+                 alt.Tooltip("Share:Q", format=".1f", title="%")],
+    ).properties(**h_props(260))
+    st.altair_chart(share_bar, use_container_width=True)
+
+    # ── Radial / polar energy-like chart — monthly kWh as bar-in-circle ──────
+    st.markdown('<div class="sec-label">Monthly total tCO₂e — radial bars</div>', unsafe_allow_html=True)
+    trend_df["theta_start"] = (trend_df["Month_num"]-1) / 12 * 2 * np.pi
+    trend_df["theta_end"]   = trend_df["Month_num"] / 12 * 2 * np.pi
+    radial = alt.Chart(trend_df).mark_arc(innerRadius=40).encode(
+        theta=alt.Theta("Month_num:O", stack=True),
+        radius=alt.Radius("Total:Q", scale=alt.Scale(type="sqrt", zero=True,
+                                                       rangeMin=40)),
+        color=alt.Color("Total:Q",
+            scale=alt.Scale(scheme="plasma"),
+            legend=alt.Legend(title="tCO₂e", orient="right")),
+        tooltip=[alt.Tooltip("Month:N"),
+                 alt.Tooltip("Total:Q", format=".4f", title="Total tCO₂e")],
+    ).properties(height=300)
+    st.altair_chart(radial, use_container_width=True)
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# TAB 5 — SCOPE 1 DETAIL
+# ══════════════════════════════════════════════════════════════════════════════
+with tab5:
     st.markdown('<span class="badge-s1">Scope 1</span>&nbsp; Mobile Combustion', unsafe_allow_html=True)
     st.markdown(" ")
 
-    m1, m2, m3, m4 = st.columns(4)
-    m1.metric("Total Scope 1",      f"{total_s1:.5f} tCO₂e")
-    m2.metric("From fuel vouchers", f"{total_s1v:.4f} tCO₂e", "3 transactions")
-    m3.metric("From bus/van trips", f"{total_s1b:.5f} tCO₂e", "5 trips")
-    m4.metric("Total distance",     "124.5 km", "bus routes")
+    m1,m2,m3,m4 = st.columns(4)
+    m1.metric("Total Scope 1",      f"{total_s1:.5f}", "tCO₂e")
+    m2.metric("Fuel vouchers",      f"{total_s1v:.4f}", "tCO₂e · 3 tx")
+    m3.metric("Bus / Van trips",    f"{total_s1b:.5f}", "tCO₂e · 5 trips")
+    m4.metric("Total distance",     "124.5 km",          "bus routes")
 
     col_a, col_b = st.columns(2)
-
     with col_a:
-        st.markdown('<p class="section-label">Fuel consumption by vehicle type</p>', unsafe_allow_html=True)
-        fuel_df = pd.DataFrame({
-            "Vehicle":  ["Diesel fleet","Peugeot Bipper (Feb)","Peugeot Bipper (Dec)"],
-            "Liters":   [1741.5, 1520.8, 1520.8],
-            "tCO2e":    [vehicle_raw.iloc[0]["tCO2e"],
-                         vehicle_raw.iloc[1]["tCO2e"],
-                         vehicle_raw.iloc[2]["tCO2e"]],
-            "Fuel":     ["Diesel","Super Gasoline","Super Gasoline"],
+        st.markdown('<div class="sec-label">Monthly Scope 1 — stacked by source type</div>', unsafe_allow_html=True)
+        fuel_mo = np.zeros(12)
+        bus_mo  = np.zeros(12)
+        for _, row in vehicle_raw.iterrows():
+            fuel_mo[int(row["Month_num"])-1] += row["tCO2e"]
+        for _, row in bus_raw.iterrows():
+            bus_mo[int(row["Month_num"])-1] += row["tCO2e"]
+
+        s1_long = pd.DataFrame({
+            "Month": MONTHS*2,
+            "Type":  ["Fuel vouchers"]*12 + ["Bus/Van"]*12,
+            "tCO2e": list(fuel_mo) + list(bus_mo),
         })
-        fuel_bar = alt.Chart(fuel_df).mark_bar(
+        s1_long["Month"] = pd.Categorical(s1_long["Month"], categories=MONTHS, ordered=True)
+
+        s1_bars = alt.Chart(s1_long).mark_bar(
             cornerRadiusTopLeft=3, cornerRadiusTopRight=3
         ).encode(
-            x=alt.X("Vehicle:N", title=None, axis=alt.Axis(labelAngle=-20, labelLimit=150)),
+            x=mx(),
+            y=alt.Y("tCO2e:Q", stack="zero", title="tCO₂e"),
+            color=alt.Color("Type:N",
+                scale=alt.Scale(domain=["Fuel vouchers","Bus/Van"],
+                                range=[C_S1, C_S2]),
+                legend=alt.Legend(orient="top", title=None)),
+            tooltip=[alt.Tooltip("Month:N"), alt.Tooltip("Type:N"),
+                     alt.Tooltip("tCO2e:Q", format=".5f", title="tCO₂e")],
+        )
+        s1_line_ov = smooth_line(trend_df, "Scope1", C_TOT, 1.8, [4,2], label="Total S1")
+        s1_pts_ov  = glow_point(trend_df, "Scope1", C_TOT, 40)
+        st.altair_chart((s1_bars+s1_line_ov+s1_pts_ov).properties(**h_props(270)),
+                        use_container_width=True)
+
+    with col_b:
+        st.markdown('<div class="sec-label">Vehicle fuel — liters & emissions</div>', unsafe_allow_html=True)
+        fuel_df = pd.DataFrame({
+            "Vehicle":["Diesel fleet","Peugeot Bipper (Feb)","Peugeot Bipper (Dec)"],
+            "Liters": [1741.5, 1520.8, 1520.8],
+            "tCO2e":  list(vehicle_raw["tCO2e"]),
+            "Fuel":   ["Diesel","Super Gasoline","Super Gasoline"],
+        })
+        fb = alt.Chart(fuel_df).mark_bar(
+            cornerRadiusTopLeft=3, cornerRadiusTopRight=3
+        ).encode(
+            x=alt.X("Vehicle:N", title=None,
+                    axis=alt.Axis(labelAngle=-20, labelLimit=160)),
             y=alt.Y("tCO2e:Q", title="tCO₂e"),
             color=alt.Color("Fuel:N",
                 scale=alt.Scale(domain=["Diesel","Super Gasoline"],
-                                range=["#378ADD","#85B7EB"]),
+                                range=[C_S1,"#54A0FF"]),
                 legend=alt.Legend(orient="top")),
             tooltip=[alt.Tooltip("Vehicle:N"), alt.Tooltip("Liters:Q", format=",.1f"),
-                     alt.Tooltip("tCO2e:Q", format=".5f", title="tCO₂e")],
+                     alt.Tooltip("tCO2e:Q", format=".4f", title="tCO₂e")],
         )
-        fuel_txt = fuel_bar.mark_text(dy=-8, fontSize=11).encode(
-            text=alt.Text("tCO2e:Q", format=".3f")
-        )
-        st.altair_chart((fuel_bar+fuel_txt).properties(height=240), use_container_width=True)
+        fb_txt = fb.mark_text(dy=-8, fontSize=10, color=TEXT_MAIN,
+                               font="DM Mono, monospace").encode(
+            text=alt.Text("tCO2e:Q", format=".3f"))
+        st.altair_chart((fb+fb_txt).properties(**h_props(270)), use_container_width=True)
 
-    with col_b:
-        st.markdown('<p class="section-label">Bus trip distances and emissions</p>', unsafe_allow_html=True)
-        bus_bar = alt.Chart(bus_raw).mark_bar(
-            color="#5DCAA5", cornerRadiusTopRight=3, cornerRadiusBottomRight=3
-        ).encode(
-            x=alt.X("Distance_km:Q", title="km"),
-            y=alt.Y("Destination:N", sort="-x", title=None),
-            tooltip=[alt.Tooltip("Destination:N"),
-                     alt.Tooltip("Distance_km:Q", title="km"),
-                     alt.Tooltip("tCO2e:Q", format=".6f", title="tCO₂e"),
-                     alt.Tooltip("Source:N")],
-        )
-        bus_txt = bus_bar.mark_text(align="left", dx=4, fontSize=10).encode(
-            text=alt.Text("Distance_km:Q", format=".1f")
-        )
-        st.altair_chart((bus_bar+bus_txt).properties(height=240), use_container_width=True)
-
-    # Monthly S1 profile
-    st.markdown('<p class="section-label">Monthly Scope 1 profile — stacked by type</p>', unsafe_allow_html=True)
-    fuel_monthly_arr = np.zeros(12)
-    bus_monthly_arr  = np.zeros(12)
-    for _, row in vehicle_raw.iterrows():
-        fuel_monthly_arr[int(row["Month_num"])-1] += row["tCO2e"]
-    for _, row in bus_raw.iterrows():
-        bus_monthly_arr[int(row["Month_num"])-1] += row["tCO2e"]
-
-    s1_long = pd.DataFrame({
-        "Month":  MONTHS*2,
-        "Type":   ["Fuel vouchers"]*12 + ["Bus/Van trips"]*12,
-        "tCO2e":  list(fuel_monthly_arr) + list(bus_monthly_arr),
-    })
-    s1_long["Month"] = pd.Categorical(s1_long["Month"], categories=MONTHS, ordered=True)
-
-    s1_bar = alt.Chart(s1_long).mark_bar(
-        cornerRadiusTopLeft=3, cornerRadiusTopRight=3
+    # Bus trips
+    st.markdown('<div class="sec-label">Bus & van trip distances</div>', unsafe_allow_html=True)
+    bus_bar = alt.Chart(bus_raw).mark_bar(
+        color=C_S2, cornerRadiusTopRight=4, cornerRadiusBottomRight=4
     ).encode(
-        x=month_axis(),
-        y=alt.Y("tCO2e:Q", stack="zero", title="tCO₂e"),
-        color=alt.Color("Type:N",
-            scale=alt.Scale(domain=["Fuel vouchers","Bus/Van trips"],
-                            range=[COLOR_S1,"#5DCAA5"]),
-            legend=alt.Legend(orient="top", title=None)),
-        tooltip=[alt.Tooltip("Month:N"), alt.Tooltip("Type:N"),
-                 alt.Tooltip("tCO2e:Q", format=".5f", title="tCO₂e")],
+        x=alt.X("Distance_km:Q", title="Distance (km)"),
+        y=alt.Y("Destination:N", sort="-x", title=None),
+        tooltip=[alt.Tooltip("Destination:N"), alt.Tooltip("Distance_km:Q", title="km"),
+                 alt.Tooltip("tCO2e:Q", format=".6f", title="tCO₂e"),
+                 alt.Tooltip("Source:N")],
     )
-    s1_line = alt.Chart(trend_df).mark_line(
-        color=COLOR_TOT, strokeWidth=1.5, strokeDash=[4,2], point=True
-    ).encode(
-        x=month_axis(),
-        y=alt.Y("Scope1:Q"),
-        tooltip=[alt.Tooltip("Month:N"),
-                 alt.Tooltip("Scope1:Q", format=".5f", title="Total S1 tCO₂e")],
-    )
-    st.altair_chart((s1_bar+s1_line).properties(height=260), use_container_width=True)
+    bus_txt = bus_bar.mark_text(align="left", dx=5, fontSize=10,
+                                 color=TEXT_MAIN, font="DM Mono, monospace").encode(
+        text=alt.Text("Distance_km:Q", format=".1f"))
+    st.altair_chart((bus_bar+bus_txt).properties(**h_props(180)), use_container_width=True)
 
-    st.markdown("#### Transactions")
-    col_t1, col_t2 = st.columns(2)
-    with col_t1:
-        disp_v = vehicle_raw[["Date","Source","Fuel_type","Liters","tCO2e"]].copy()
-        disp_v.columns = ["Date","Source","Fuel","Liters","tCO₂e"]
-        disp_v["Liters"] = disp_v["Liters"].map("{:,.1f}".format)
-        disp_v["tCO₂e"]  = disp_v["tCO₂e"].map("{:.5f}".format)
-        st.markdown("**Fuel vouchers**")
-        st.dataframe(disp_v, use_container_width=True, hide_index=True)
-    with col_t2:
-        disp_b = bus_raw[["Date","Destination","Source","Distance_km","tCO2e"]].copy()
-        disp_b.columns = ["Date","Destination","Vehicle","km","tCO₂e"]
-        disp_b["tCO₂e"] = disp_b["tCO₂e"].map("{:.6f}".format)
-        st.markdown("**Bus/Van trips**")
-        st.dataframe(disp_b, use_container_width=True, hide_index=True)
+    # Tables
+    ct1, ct2 = st.columns(2)
+    with ct1:
+        st.markdown("**Fuel voucher transactions**")
+        dv = vehicle_raw[["Date","Source","Fuel_type","Liters","tCO2e"]].copy()
+        dv.columns = ["Date","Source","Fuel","Liters","tCO₂e"]
+        dv["Liters"] = dv["Liters"].map("{:,.1f}".format)
+        dv["tCO₂e"]  = dv["tCO₂e"].map("{:.5f}".format)
+        st.dataframe(dv, use_container_width=True, hide_index=True)
+    with ct2:
+        st.markdown("**Bus / van trips**")
+        db = bus_raw[["Date","Destination","Source","Distance_km","tCO2e"]].copy()
+        db.columns = ["Date","Destination","Vehicle","km","tCO₂e"]
+        db["tCO₂e"] = db["tCO₂e"].map("{:.6f}".format)
+        st.dataframe(db, use_container_width=True, hide_index=True)
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# TAB 5 — SCOPE 2 DETAIL
+# TAB 6 — SCOPE 2 DETAIL
 # ══════════════════════════════════════════════════════════════════════════════
-with tab5:
+with tab6:
     st.markdown('<span class="badge-s2">Scope 2</span>&nbsp; Purchased Electricity — location-based', unsafe_allow_html=True)
     st.markdown(" ")
 
-    m1, m2, m3, m4, m5 = st.columns(5)
-    m1.metric("Total Scope 2",      f"{total_s2:.3f} tCO₂e")
-    m2.metric("Total consumption",  f"{total_kwh/1000:.1f} MWh")
-    m3.metric("Monthly avg",        f"{int(total_kwh/12):,} kWh")
-    m4.metric("Peak month",         "July — 48,569 kWh")
-    m5.metric("Grid factor",        f"{ef_grid:.3f} kgCO₂e/kWh")
+    m1,m2,m3,m4,m5 = st.columns(5)
+    m1.metric("Total Scope 2",     f"{total_s2:.3f}", "tCO₂e")
+    m2.metric("Total consumption", f"{total_kwh/1000:.1f}", "MWh")
+    m3.metric("Monthly average",   f"{int(total_kwh/12):,}", "kWh")
+    m4.metric("Peak month",        "July · 48,569",          "kWh")
+    m5.metric("Grid factor",       f"{ef_grid:.3f}",          "kgCO₂e / kWh")
 
-    # ── Chart 1: Dual-axis bar (kWh) + line (tCO2e) ───────────────────────
-    st.markdown('<p class="section-label">Monthly consumption (kWh) vs emissions (tCO₂e)</p>', unsafe_allow_html=True)
-
+    # ── Chart A: Dual-axis bar + CO2e line ───────────────────────────────────
+    st.markdown('<div class="sec-label">Monthly electricity (kWh) vs emissions (tCO₂e)</div>', unsafe_allow_html=True)
     elec_plot = elec_df.copy()
     elec_plot["Month"] = pd.Categorical(elec_plot["Month"], categories=MONTHS, ordered=True)
 
     bar_kwh = alt.Chart(elec_plot).mark_bar(
-        color="#9FE1CB", cornerRadiusTopLeft=3, cornerRadiusTopRight=3
+        color=C_S2, opacity=0.35,
+        cornerRadiusTopLeft=4, cornerRadiusTopRight=4, width={"band": 0.7}
     ).encode(
-        x=month_axis(),
-        y=alt.Y("kWh:Q", title="kWh", axis=alt.Axis(titleColor="#1D9E75")),
+        x=mx(),
+        y=alt.Y("kWh:Q", title="kWh", axis=alt.Axis(titleColor=C_S2)),
         tooltip=[alt.Tooltip("Month:N"),
                  alt.Tooltip("kWh:Q",   format=",.0f", title="kWh"),
                  alt.Tooltip("tCO2e:Q", format=".3f",  title="tCO₂e")],
     )
     line_co2 = alt.Chart(elec_plot).mark_line(
-        color="#0F6E56", strokeWidth=2.5
+        color=C_S2, strokeWidth=2.8, interpolate=interp
     ).encode(
-        x=month_axis(),
-        y=alt.Y("tCO2e:Q", title="tCO₂e",
-                axis=alt.Axis(titleColor="#0F6E56")),
+        x=mx(),
+        y=alt.Y("tCO2e:Q", title="tCO₂e", axis=alt.Axis(titleColor=C_S2)),
         tooltip=[alt.Tooltip("Month:N"),
                  alt.Tooltip("tCO2e:Q", format=".3f", title="tCO₂e")],
     )
     pts_co2 = alt.Chart(elec_plot).mark_point(
-        color="#0F6E56", filled=True, size=55
+        color=C_S2, filled=True, size=65
     ).encode(
-        x=month_axis(),
-        y=alt.Y("tCO2e:Q"),
+        x=mx(), y=alt.Y("tCO2e:Q"),
         tooltip=[alt.Tooltip("Month:N"),
                  alt.Tooltip("tCO2e:Q", format=".3f", title="tCO₂e")],
     )
-    avg_line = alt.Chart(pd.DataFrame({"y":[elec_kwh.mean()]})).mark_rule(
-        color=COLOR_AVG, strokeDash=[4,2], strokeWidth=1.4
-    ).encode(y="y:Q")
+    avg_rule = rule_line(elec_kwh.mean(), C_TARGET)
+    dual = alt.layer(bar_kwh, avg_rule, line_co2+pts_co2).resolve_scale(y="independent")
+    st.altair_chart(dual.properties(**h_props(300)), use_container_width=True)
+    st.caption(f"Dashed line = annual avg {elec_kwh.mean():,.0f} kWh")
 
-    dual = alt.layer(bar_kwh, avg_line, line_co2+pts_co2).resolve_scale(y="independent")
-    st.altair_chart(dual.properties(height=300), use_container_width=True)
-    st.caption(f"Dashed red line = annual average ({elec_kwh.mean():,.0f} kWh)")
+    col_l2, col_r2 = st.columns(2)
 
-    # ── Chart 2: Scope 2 area + rolling avg ──────────────────────────────────
-    st.markdown('<p class="section-label">Scope 2 emissions — area with 3-month rolling average</p>', unsafe_allow_html=True)
+    with col_l2:
+        # ── Chart B: Scope 2 area + rolling + projection ──────────────────
+        st.markdown('<div class="sec-label">Scope 2 emissions — area + trend overlays</div>', unsafe_allow_html=True)
+        s2_chart = area_chart(trend_df, "Scope2", C_S2, 0.14)
+        s2_chart = s2_chart + smooth_line(trend_df, "Scope2", C_S2, 2.5, label="S2 monthly")
+        s2_chart = s2_chart + glow_point(trend_df, "Scope2", C_S2, 55)
+        if show_rolling:
+            s2_chart = s2_chart + smooth_line(trend_df, "Roll_S2", C_ROLL, 1.8,
+                                               [4,2], 0.75, "Rolling avg")
+        if show_proj:
+            s2_chart = s2_chart + smooth_line(trend_df, "Proj_S2", C_PROJ, 1.5,
+                                               [5,3], 0.7, "Linear projection")
+        if show_target:
+            s2_chart = s2_chart + rule_line(target_monthly[0]*total_s2/total_all, C_TARGET)
+        st.altair_chart(s2_chart.properties(**h_props(270)), use_container_width=True)
 
-    s2_area = alt.Chart(trend_df).mark_area(
-        color=COLOR_S2, opacity=0.2,
-        line={"color": COLOR_S2, "strokeWidth":2}
+    with col_r2:
+        # ── Chart C: Carbon intensity ─────────────────────────────────────
+        st.markdown('<div class="sec-label">Carbon intensity — kgCO₂e per kWh</div>', unsafe_allow_html=True)
+        int_chart = (
+            area_chart(trend_df, "Intensity", C_INT, 0.12, "kgCO₂e / kWh") +
+            smooth_line(trend_df, "Intensity", C_INT, 2.2, label="Intensity") +
+            glow_point(trend_df,  "Intensity", C_INT, 55) +
+            rule_line(intensity.mean(), C_PROJ)
+        )
+        st.altair_chart(int_chart.properties(**h_props(270)), use_container_width=True)
+        st.caption("Flat line = constant grid factor; changes when EF is adjusted in sidebar")
+
+    # ── Chart D: kWh deviation from mean ────────────────────────────────────
+    st.markdown('<div class="sec-label">kWh deviation from annual average</div>', unsafe_allow_html=True)
+    trend_df["kWh_Dev"] = trend_df["kWh"] - elec_kwh.mean()
+    trend_df["Dev_Dir"] = np.where(trend_df["kWh_Dev"] >= 0, "Above avg", "Below avg")
+
+    dev_bar = alt.Chart(trend_df).mark_bar(
+        cornerRadiusTopLeft=3, cornerRadiusTopRight=3,
+        cornerRadiusBottomLeft=3, cornerRadiusBottomRight=3,
+        width={"band": 0.65}
     ).encode(
-        x=month_axis(),
-        y=alt.Y("Scope2:Q", title="tCO₂e"),
+        x=mx(),
+        y=alt.Y("kWh_Dev:Q", title="kWh deviation", axis=alt.Axis(format=",.0f")),
+        color=alt.Color("Dev_Dir:N",
+            scale=alt.Scale(domain=["Above avg","Below avg"],
+                            range=[C_TARGET, C_S2]),
+            legend=alt.Legend(orient="top", title=None)),
         tooltip=[alt.Tooltip("Month:N"),
-                 alt.Tooltip("Scope2:Q", format=".3f", title="tCO₂e")],
+                 alt.Tooltip("kWh:Q",    format=",.0f", title="kWh"),
+                 alt.Tooltip("kWh_Dev:Q",format=",.0f", title="Δ from avg")],
     )
-    s2_roll_line = alt.Chart(trend_df).mark_line(
-        color=COLOR_AVG, strokeWidth=2, strokeDash=[4,2]
-    ).encode(
-        x=month_axis(),
-        y=alt.Y("Roll_S2:Q"),
-        tooltip=[alt.Tooltip("Month:N"),
-                 alt.Tooltip("Roll_S2:Q", format=".3f", title="3-mo rolling avg")],
-    )
-    s2_proj_line = alt.Chart(trend_df).mark_line(
-        color=COLOR_INT, strokeWidth=1.5, strokeDash=[2,2], opacity=0.8
-    ).encode(
-        x=month_axis(),
-        y=alt.Y("Proj_S2:Q"),
-        tooltip=[alt.Tooltip("Month:N"),
-                 alt.Tooltip("Proj_S2:Q", format=".3f", title="Linear projection")],
-    )
-    scope2_chart = s2_area + s2_roll_line
-    if show_proj:
-        scope2_chart = scope2_chart + s2_proj_line
-    st.altair_chart(scope2_chart.properties(height=280), use_container_width=True)
-    st.caption("Dashed red = 3-month rolling average  ·  Orange dashes = linear trend projection")
-
-    # ── Chart 3: Carbon intensity (flat if EF constant, but dynamic with EF changes) ──
-    st.markdown('<p class="section-label">Scope 2 carbon intensity (kgCO₂e per kWh)</p>', unsafe_allow_html=True)
-
-    intensity_area = alt.Chart(trend_df).mark_area(
-        color=COLOR_INT, opacity=0.15,
-        line={"color": COLOR_INT, "strokeWidth":2}
-    ).encode(
-        x=month_axis(),
-        y=alt.Y("Intensity:Q", title="kgCO₂e / kWh",
-                scale=alt.Scale(domain=[0, intensity.max()*1.3])),
-        tooltip=[alt.Tooltip("Month:N"),
-                 alt.Tooltip("Intensity:Q", format=".4f", title="kgCO₂e/kWh"),
-                 alt.Tooltip("kWh:Q", format=",.0f")],
-    )
-    intensity_pts = alt.Chart(trend_df).mark_point(
-        color=COLOR_INT, filled=True, size=60
-    ).encode(
-        x=month_axis(),
-        y=alt.Y("Intensity:Q"),
-    )
-    avg_intensity_rule = alt.Chart(pd.DataFrame({"y":[intensity.mean()]})).mark_rule(
-        color=COLOR_AVG, strokeDash=[3,2], strokeWidth=1.2
-    ).encode(y="y:Q")
-    st.altair_chart((intensity_area+intensity_pts+avg_intensity_rule).properties(height=220),
+    dev_line = smooth_line(trend_df, "kWh_Dev", C_ROLL, 1.5, [3,2], 0.6, "Trend")
+    zero_r   = rule_line(0, GRID_COL, [3,2])
+    st.altair_chart((dev_bar + zero_r + dev_line).properties(**h_props(240)),
                     use_container_width=True)
 
-    # ── Table ─────────────────────────────────────────────────────────────────
-    st.markdown('<p class="section-label">Monthly breakdown</p>', unsafe_allow_html=True)
-    disp_e = elec_df[["Month","kWh","MWh","tCO2e","Meters"]].copy()
-    disp_e.columns = ["Month","kWh","MWh","tCO₂e","Meters"]
-    disp_e["kWh"]   = disp_e["kWh"].map("{:,.0f}".format)
-    disp_e["MWh"]   = disp_e["MWh"].map("{:.3f}".format)
-    disp_e["tCO₂e"] = disp_e["tCO₂e"].map("{:.4f}".format)
-    st.dataframe(disp_e, use_container_width=True, hide_index=True)
-    st.caption(f"Grid emission factor: {ef_grid:.4f} kgCO₂e/kWh (Tunisia STEG) · Adjust in sidebar → all charts update live")
+    # ── Table ────────────────────────────────────────────────────────────────
+    st.markdown('<div class="sec-label">Monthly breakdown</div>', unsafe_allow_html=True)
+    de = elec_df[["Month","kWh","MWh","tCO2e","Meters"]].copy()
+    de.columns = ["Month","kWh","MWh","tCO₂e","Meters"]
+    de["kWh"]   = de["kWh"].map("{:,.0f}".format)
+    de["MWh"]   = de["MWh"].map("{:.3f}".format)
+    de["tCO₂e"] = de["tCO₂e"].map("{:.4f}".format)
+    st.dataframe(de, use_container_width=True, hide_index=True)
+    st.caption(f"Grid EF: {ef_grid:.4f} kgCO₂e/kWh (Tunisia STEG) · All charts update live with sidebar sliders")
