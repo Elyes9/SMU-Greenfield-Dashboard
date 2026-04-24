@@ -300,6 +300,8 @@ with st.sidebar:
     ef_gasoline = st.number_input("Gasoline (kgCO₂e / L)", value=2.31,  step=0.01,  format="%.3f")
     ef_bus_km   = st.number_input("Bus/Van (kgCO₂e / km)", value=0.089, step=0.001, format="%.4f")
     ef_grid     = st.number_input("Grid (kgCO₂e / kWh)",   value=0.267, step=0.001, format="%.4f")
+    ef_hvac     = st.number_input("HVAC gas (kgCO₂e / kWh)", value=0.198, step=0.001, format="%.3f",
+                                   help="Natural gas combustion EF for HVAC heating load")
 
     st.markdown("---")
     st.markdown("### 🎛️ Chart overlays")
@@ -313,7 +315,7 @@ with st.sidebar:
     st.markdown("**Framework** · GHG Protocol")
     st.markdown("**Year** · 2025")
     st.markdown("**Grid** · Tunisia STEG")
-    st.markdown('<span class="badge-s1">Scope 1</span> &nbsp; Mobile combustion', unsafe_allow_html=True)
+    st.markdown('<span class="badge-s1">Scope 1</span> &nbsp; Mobile combustion + HVAC', unsafe_allow_html=True)
     st.markdown('<span class="badge-s2">Scope 2</span> &nbsp; Purchased electricity', unsafe_allow_html=True)
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -345,6 +347,32 @@ bus_raw = pd.DataFrame({
 })
 bus_raw["tCO2e"] = bus_raw["Distance_km"] * ef_bus_km / 1000
 
+# HVAC — Medtech heating & cooling loads (kWh)
+# Heating = natural gas combustion → Scope 1
+# Cooling = electrically driven     → Scope 2 (tracked separately via grid meter)
+hvac_heating_kwh = np.array([2287.5, 2316.8, 2391.0, 2415.5,    0,    0,
+                                  0,      0,      0,      0, 2349.1, 2305.8])
+hvac_cooling_kwh = np.array([   0,      0,      0,      0, 2445.0, 2500.0,
+                              2502.3, 2498.5, 2456.8, 2403.7,    0,     0])
+HVAC_HOURS_PER_MONTH = 1700  # average working hours
+
+hvac_df = pd.DataFrame({
+    "Month":          MONTHS,
+    "Month_num":      MONTH_NUMS,
+    "Heating_kWh":    hvac_heating_kwh,
+    "Cooling_kWh":    hvac_cooling_kwh,
+})
+# Heating combustion → tCO2e (natural gas, Scope 1)
+hvac_df["Heating_tCO2e"] = hvac_df["Heating_kWh"] * ef_hvac / 1000
+# Cooling via electricity → tCO2e (Scope 2 — informational, already in grid meter)
+hvac_df["Cooling_tCO2e"] = hvac_df["Cooling_kWh"] * ef_grid / 1000
+hvac_df["Total_kWh"]     = hvac_df["Heating_kWh"] + hvac_df["Cooling_kWh"]
+hvac_df["Month"] = pd.Categorical(hvac_df["Month"], categories=MONTHS, ordered=True)
+
+total_hvac_heating = hvac_df["Heating_tCO2e"].sum()
+total_hvac_cooling = hvac_df["Cooling_tCO2e"].sum()
+hvac_s1_monthly    = hvac_df["Heating_tCO2e"].values  # only heating is Scope 1
+
 elec_df = pd.DataFrame({
     "Month":     MONTHS,
     "Month_num": MONTH_NUMS,
@@ -357,18 +385,21 @@ elec_df["tCO2e"] = elec_df["kWh"] * ef_grid / 1000
 # ─────────────────────────────────────────────────────────────────────────────
 # COMPUTED SERIES
 # ─────────────────────────────────────────────────────────────────────────────
-total_s2  = elec_df["tCO2e"].sum()
-total_s1v = vehicle_raw["tCO2e"].sum()
-total_s1b = bus_raw["tCO2e"].sum()
-total_s1  = total_s1v + total_s1b
-total_all = total_s1 + total_s2
-total_kwh = int(elec_kwh.sum())
+total_s2      = elec_df["tCO2e"].sum()
+total_s1v     = vehicle_raw["tCO2e"].sum()
+total_s1b     = bus_raw["tCO2e"].sum()
+total_s1hvac  = total_hvac_heating
+total_s1      = total_s1v + total_s1b + total_s1hvac
+total_all     = total_s1 + total_s2
+total_kwh     = int(elec_kwh.sum())
 
 s1_monthly = np.zeros(12)
 for _, row in vehicle_raw.iterrows():
     s1_monthly[int(row["Month_num"])-1] += row["tCO2e"]
 for _, row in bus_raw.iterrows():
     s1_monthly[int(row["Month_num"])-1] += row["tCO2e"]
+# Add HVAC heating to Scope 1
+s1_monthly = s1_monthly + hvac_s1_monthly
 
 s2_monthly    = elec_df["tCO2e"].values.copy()
 total_monthly = s1_monthly + s2_monthly
@@ -423,6 +454,7 @@ trend_df = pd.DataFrame({
     "Scope1":      s1_monthly,
     "Scope2":      s2_monthly,
     "Total":       total_monthly,
+    "HVAC_S1":     hvac_s1_monthly,
     "Roll_S1":     roll_s1,
     "Roll_S2":     roll_s2,
     "Roll_Total":  roll_total,
@@ -502,12 +534,12 @@ st.markdown('<div class="dash-sub">GHG Protocol · Scope 1 & 2 · Tunisia · Rep
 
 # KPI STRIP
 k1, k2, k3, k4, k5, k6 = st.columns(6)
-k1.metric("Grand Total",       f"{total_all:.2f}",        "tCO₂e · S1+S2")
-k2.metric("Scope 1",           f"{total_s1:.4f}",         "tCO₂e · mobile")
-k3.metric("Scope 2",           f"{total_s2:.2f}",         "tCO₂e · electricity")
-k4.metric("Total Electricity", f"{total_kwh/1000:.1f} MWh","15 meters")
-k5.metric("Avg Intensity",     f"{intensity.mean():.3f}", "kgCO₂e / kWh")
-k6.metric("S2 Share",          f"{total_s2/total_all*100:.1f}%", "of total emissions")
+k1.metric("Grand Total",       f"{total_all:.2f}",              "tCO₂e · S1+S2")
+k2.metric("Scope 1",           f"{total_s1:.3f}",               "tCO₂e · mobile+HVAC")
+k3.metric("Scope 2",           f"{total_s2:.2f}",               "tCO₂e · electricity")
+k4.metric("HVAC Heating S1",   f"{total_s1hvac:.3f}",           "tCO₂e · combustion")
+k5.metric("Avg Intensity",     f"{intensity.mean():.3f}",       "kgCO₂e / kWh")
+k6.metric("S2 Share",          f"{total_s2/total_all*100:.1f}%","of total emissions")
 
 st.markdown("---")
 
@@ -533,15 +565,17 @@ with tab1:
     with col_l:
         st.markdown('<div class="sec-label">Emissions split by scope</div>', unsafe_allow_html=True)
         donut_df = pd.DataFrame({
-            "Scope": ["Scope 1 · Mobile Combustion", "Scope 2 · Electricity"],
-            "tCO2e": [round(total_s1,4), round(total_s2,4)],
-            "Pct":   [round(total_s1/total_all*100,1), round(total_s2/total_all*100,1)],
+            "Scope": ["S1 · Mobile Combustion", "S1 · HVAC Heating", "Scope 2 · Electricity"],
+            "tCO2e": [round(total_s1v+total_s1b,4), round(total_s1hvac,4), round(total_s2,4)],
+            "Pct":   [round((total_s1v+total_s1b)/total_all*100,1),
+                      round(total_s1hvac/total_all*100,1),
+                      round(total_s2/total_all*100,1)],
         })
         arc = alt.Chart(donut_df).mark_arc(innerRadius=75, outerRadius=130, padAngle=0.02).encode(
             theta=alt.Theta("tCO2e:Q"),
             color=alt.Color("Scope:N",
                 scale=alt.Scale(domain=donut_df["Scope"].tolist(),
-                                range=[C_S1, C_S2]),
+                                range=[C_S1, "#FF8C42", C_S2]),
                 legend=alt.Legend(orient="bottom", labelLimit=350,
                                   symbolType="circle", symbolSize=80)),
             tooltip=[alt.Tooltip("Scope:N"),
@@ -577,14 +611,15 @@ with tab1:
     # Source breakdown
     st.markdown('<div class="sec-label">Scope 1 — emission source breakdown</div>', unsafe_allow_html=True)
     src_df = pd.DataFrame({
-        "Source":   ["Diesel (fleet)","Gasoline Feb","Gasoline Dec","Bus/Van trips"],
+        "Source":   ["Diesel (fleet)","Gasoline Feb","Gasoline Dec","Bus/Van trips","HVAC Heating"],
         "tCO2e":    [
             vehicle_raw.loc[vehicle_raw["Fuel_type"]=="Diesel","tCO2e"].sum(),
             vehicle_raw.iloc[1]["tCO2e"],
             vehicle_raw.iloc[2]["tCO2e"],
             bus_raw["tCO2e"].sum(),
+            total_s1hvac,
         ],
-        "Category": ["Vehicle fuel","Vehicle fuel","Vehicle fuel","Distance-based"],
+        "Category": ["Vehicle fuel","Vehicle fuel","Vehicle fuel","Distance-based","HVAC"],
     })
     src_bar = alt.Chart(src_df).mark_bar(
         cornerRadiusTopRight=4, cornerRadiusBottomRight=4
@@ -592,8 +627,8 @@ with tab1:
         x=alt.X("tCO2e:Q", title="tCO₂e"),
         y=alt.Y("Source:N", sort="-x", title=None),
         color=alt.Color("Category:N",
-            scale=alt.Scale(domain=["Vehicle fuel","Distance-based"],
-                            range=[C_S1, C_S2]),
+            scale=alt.Scale(domain=["Vehicle fuel","Distance-based","HVAC"],
+                            range=[C_S1, C_S2, C_TOT]),
             legend=alt.Legend(orient="right")),
         tooltip=[alt.Tooltip("Source:N"),
                  alt.Tooltip("tCO2e:Q", format=".5f", title="tCO₂e")],
@@ -603,24 +638,30 @@ with tab1:
         text=alt.Text("tCO2e:Q", format=".4f"))
     st.altair_chart(src_bar+src_txt, use_container_width=True)
 
-    ia, ib, ic = st.columns(3)
+    ia, ib, ic, id_ = st.columns(4)
     with ia:
         st.markdown(f"""<div class="insight-card blue">
             <strong>🚗 Diesel dominates Scope 1</strong>
             {vehicle_raw.iloc[0]['tCO2e']:.3f} tCO₂e from 1,742 L diesel in February —
-            the single largest mobile combustion event in the year.
+            the single largest mobile combustion event.
         </div>""", unsafe_allow_html=True)
     with ib:
         st.markdown(f"""<div class="insight-card">
-            <strong>⚡ July electricity surge</strong>
-            +{(elec_kwh[6]/elec_kwh.mean()-1)*100:.0f}% above annual average.
-            Summer cooling drives 48,569 kWh → {elec_df.iloc[6]['tCO2e']:.2f} tCO₂e.
+            <strong>🌡️ HVAC heating — Scope 1</strong>
+            {total_s1hvac:.3f} tCO₂e from natural gas combustion across
+            8 heating months (Jan–Apr, Nov–Dec).
         </div>""", unsafe_allow_html=True)
     with ic:
+        st.markdown(f"""<div class="insight-card">
+            <strong>⚡ July electricity surge</strong>
+            +{(elec_kwh[6]/elec_kwh.mean()-1)*100:.0f}% above annual avg.
+            Summer cooling drives 48,569 kWh → {elec_df.iloc[6]['tCO2e']:.2f} tCO₂e.
+        </div>""", unsafe_allow_html=True)
+    with id_:
         st.markdown(f"""<div class="insight-card orange">
             <strong>📊 Scope 2 is the lever</strong>
             Electricity = <b>{total_s2/total_all*100:.1f}%</b> of total GHG.
-            Renewable procurement offers the highest decarbonisation potential.
+            Renewable procurement offers the highest impact.
         </div>""", unsafe_allow_html=True)
 
 
@@ -903,76 +944,186 @@ with tab4:
 # TAB 5 — SCOPE 1 DETAIL
 # ══════════════════════════════════════════════════════════════════════════════
 with tab5:
-    st.markdown('<span class="badge-s1">Scope 1</span>&nbsp; Mobile Combustion', unsafe_allow_html=True)
+    st.markdown('<span class="badge-s1">Scope 1</span>&nbsp; Mobile Combustion + HVAC Heating', unsafe_allow_html=True)
     st.markdown(" ")
 
-    m1,m2,m3,m4 = st.columns(4)
-    m1.metric("Total Scope 1",      f"{total_s1:.5f}", "tCO₂e")
-    m2.metric("Fuel vouchers",      f"{total_s1v:.4f}", "tCO₂e · 3 tx")
-    m3.metric("Bus / Van trips",    f"{total_s1b:.5f}", "tCO₂e · 5 trips")
-    m4.metric("Total distance",     "124.5 km",          "bus routes")
+    m1,m2,m3,m4,m5 = st.columns(5)
+    m1.metric("Total Scope 1",     f"{total_s1:.3f}",      "tCO₂e")
+    m2.metric("Fuel vouchers",     f"{total_s1v:.4f}",     "tCO₂e · 3 tx")
+    m3.metric("Bus / Van trips",   f"{total_s1b:.5f}",     "tCO₂e · 5 trips")
+    m4.metric("HVAC Heating",      f"{total_s1hvac:.3f}",  "tCO₂e · 8 months")
+    m5.metric("HVAC cooling",      f"{total_hvac_cooling:.3f}", "tCO₂e · S2 (info)")
+
+    # ── Chart A: Monthly stacked S1 — fuel + bus + HVAC ──────────────────────
+    st.markdown('<div class="sec-label">Monthly Scope 1 — stacked by source type (vehicles + HVAC heating)</div>', unsafe_allow_html=True)
+
+    fuel_mo = np.zeros(12)
+    bus_mo  = np.zeros(12)
+    for _, row in vehicle_raw.iterrows():
+        fuel_mo[int(row["Month_num"])-1] += row["tCO2e"]
+    for _, row in bus_raw.iterrows():
+        bus_mo[int(row["Month_num"])-1] += row["tCO2e"]
+
+    s1_long = pd.DataFrame({
+        "Month": MONTHS * 3,
+        "Type":  ["Fuel vouchers"]*12 + ["Bus/Van"]*12 + ["HVAC Heating"]*12,
+        "tCO2e": list(fuel_mo) + list(bus_mo) + list(hvac_s1_monthly),
+    })
+    s1_long["Month"] = pd.Categorical(s1_long["Month"], categories=MONTHS, ordered=True)
+
+    s1_bars = alt.Chart(s1_long).mark_bar(
+        cornerRadiusTopLeft=3, cornerRadiusTopRight=3
+    ).encode(
+        x=mx(),
+        y=alt.Y("tCO2e:Q", stack="zero", title="tCO₂e"),
+        color=alt.Color("Type:N",
+            scale=alt.Scale(domain=["Fuel vouchers","Bus/Van","HVAC Heating"],
+                            range=[C_S1, C_S2, C_TOT]),
+            legend=alt.Legend(orient="top", title=None)),
+        tooltip=[alt.Tooltip("Month:N"), alt.Tooltip("Type:N"),
+                 alt.Tooltip("tCO2e:Q", format=".5f", title="tCO₂e")],
+    )
+    s1_line_ov = smooth_line(trend_df, "Scope1", C_ROLL, 1.8, [4,2], label="Total S1")
+    s1_pts_ov  = glow_point(trend_df, "Scope1", C_ROLL, 40)
+    st.altair_chart((s1_bars + s1_line_ov + s1_pts_ov).properties(**h_props(300)),
+                    use_container_width=True)
 
     col_a, col_b = st.columns(2)
+
     with col_a:
-        st.markdown('<div class="sec-label">Monthly Scope 1 — stacked by source type</div>', unsafe_allow_html=True)
-        fuel_mo = np.zeros(12)
-        bus_mo  = np.zeros(12)
-        for _, row in vehicle_raw.iterrows():
-            fuel_mo[int(row["Month_num"])-1] += row["tCO2e"]
-        for _, row in bus_raw.iterrows():
-            bus_mo[int(row["Month_num"])-1] += row["tCO2e"]
-
-        s1_long = pd.DataFrame({
-            "Month": MONTHS*2,
-            "Type":  ["Fuel vouchers"]*12 + ["Bus/Van"]*12,
-            "tCO2e": list(fuel_mo) + list(bus_mo),
+        # ── Chart B: HVAC heating & cooling loads ────────────────────────────
+        st.markdown('<div class="sec-label">HVAC monthly load — heating vs cooling (kWh)</div>', unsafe_allow_html=True)
+        hvac_long = pd.DataFrame({
+            "Month":  MONTHS * 2,
+            "Type":   ["Heating (Scope 1)"]*12 + ["Cooling (Scope 2)"]*12,
+            "kWh":    list(hvac_heating_kwh) + list(hvac_cooling_kwh),
         })
-        s1_long["Month"] = pd.Categorical(s1_long["Month"], categories=MONTHS, ordered=True)
+        hvac_long["Month"] = pd.Categorical(hvac_long["Month"], categories=MONTHS, ordered=True)
 
-        s1_bars = alt.Chart(s1_long).mark_bar(
-            cornerRadiusTopLeft=3, cornerRadiusTopRight=3
+        hvac_bars = alt.Chart(hvac_long).mark_bar(
+            cornerRadiusTopLeft=3, cornerRadiusTopRight=3, width={"band": 0.65}
         ).encode(
             x=mx(),
-            y=alt.Y("tCO2e:Q", stack="zero", title="tCO₂e"),
+            y=alt.Y("kWh:Q", title="kWh", stack=None),
             color=alt.Color("Type:N",
-                scale=alt.Scale(domain=["Fuel vouchers","Bus/Van"],
-                                range=[C_S1, C_S2]),
+                scale=alt.Scale(domain=["Heating (Scope 1)","Cooling (Scope 2)"],
+                                range=[C_TOT, C_S2]),
                 legend=alt.Legend(orient="top", title=None)),
+            xOffset=alt.XOffset("Type:N"),
+            opacity=alt.condition(
+                alt.datum.kWh > 0, alt.value(0.9), alt.value(0.0)
+            ),
             tooltip=[alt.Tooltip("Month:N"), alt.Tooltip("Type:N"),
-                     alt.Tooltip("tCO2e:Q", format=".5f", title="tCO₂e")],
+                     alt.Tooltip("kWh:Q", format=",.1f", title="kWh")],
         )
-        s1_line_ov = smooth_line(trend_df, "Scope1", C_TOT, 1.8, [4,2], label="Total S1")
-        s1_pts_ov  = glow_point(trend_df, "Scope1", C_TOT, 40)
-        st.altair_chart((s1_bars+s1_line_ov+s1_pts_ov).properties(**h_props(270)),
-                        use_container_width=True)
+
+        # Heating emissions line (right axis)
+        hvac_line = alt.Chart(hvac_df[hvac_df["Heating_kWh"]>0]).mark_line(
+            color=C_TOT, strokeWidth=2.2, interpolate=interp, strokeDash=[4,2]
+        ).encode(
+            x=mx(),
+            y=alt.Y("Heating_tCO2e:Q", title="tCO₂e",
+                    axis=alt.Axis(titleColor=C_TOT)),
+            tooltip=[alt.Tooltip("Month:N"),
+                     alt.Tooltip("Heating_tCO2e:Q", format=".4f", title="Heating tCO₂e")],
+        )
+        hvac_pts = alt.Chart(hvac_df[hvac_df["Heating_kWh"]>0]).mark_point(
+            color=C_TOT, filled=True, size=55
+        ).encode(
+            x=mx(), y=alt.Y("Heating_tCO2e:Q"),
+        )
+        hvac_chart = alt.layer(hvac_bars, hvac_line + hvac_pts).resolve_scale(y="independent")
+        st.altair_chart(hvac_chart.properties(**h_props(290)), use_container_width=True)
+        st.caption("Bars = kWh load  ·  Dashed line = Scope 1 tCO₂e (heating only, natural gas combustion)")
 
     with col_b:
-        st.markdown('<div class="sec-label">Vehicle fuel — liters & emissions</div>', unsafe_allow_html=True)
-        fuel_df = pd.DataFrame({
-            "Vehicle":["Diesel fleet","Peugeot Bipper (Feb)","Peugeot Bipper (Dec)"],
-            "Liters": [1741.5, 1520.8, 1520.8],
-            "tCO2e":  list(vehicle_raw["tCO2e"]),
-            "Fuel":   ["Diesel","Super Gasoline","Super Gasoline"],
-        })
-        fb = alt.Chart(fuel_df).mark_bar(
-            cornerRadiusTopLeft=3, cornerRadiusTopRight=3
-        ).encode(
-            x=alt.X("Vehicle:N", title=None,
-                    axis=alt.Axis(labelAngle=-20, labelLimit=160)),
-            y=alt.Y("tCO2e:Q", title="tCO₂e"),
-            color=alt.Color("Fuel:N",
-                scale=alt.Scale(domain=["Diesel","Super Gasoline"],
-                                range=[C_S1,"#54A0FF"]),
-                legend=alt.Legend(orient="top")),
-            tooltip=[alt.Tooltip("Vehicle:N"), alt.Tooltip("Liters:Q", format=",.1f"),
-                     alt.Tooltip("tCO2e:Q", format=".4f", title="tCO₂e")],
-        )
-        fb_txt = fb.mark_text(dy=-8, fontSize=10, color=TEXT_MAIN,
-                               font="DM Mono, monospace").encode(
-            text=alt.Text("tCO2e:Q", format=".3f"))
-        st.altair_chart((fb+fb_txt).properties(**h_props(270)), use_container_width=True)
+        # ── Chart C: HVAC tCO2e area — heating Scope 1 ──────────────────────
+        st.markdown('<div class="sec-label">HVAC heating — monthly tCO₂e (Scope 1)</div>', unsafe_allow_html=True)
+        hvac_area_df = hvac_df.copy()
 
-    # Bus trips
+        hvac_area = alt.Chart(hvac_area_df).mark_area(
+            color=C_TOT, opacity=0.15, interpolate=interp,
+            line={"color": C_TOT, "strokeWidth": 2.5}
+        ).encode(
+            x=mx(),
+            y=alt.Y("Heating_tCO2e:Q", title="tCO₂e"),
+            tooltip=[alt.Tooltip("Month:N"),
+                     alt.Tooltip("Heating_tCO2e:Q", format=".4f", title="Heating tCO₂e"),
+                     alt.Tooltip("Heating_kWh:Q",   format=",.1f",  title="Heating kWh")],
+        )
+        hvac_pts2 = glow_point(hvac_area_df, "Heating_tCO2e", C_TOT, 55)
+
+        # Rolling avg of heating
+        hvac_area_df["Roll_Heat"] = rolling_n(hvac_area_df["Heating_tCO2e"].values)
+        hvac_roll = smooth_line(hvac_area_df, "Roll_Heat", C_ROLL, 1.8,
+                                [4,2], 0.75, "Rolling avg")
+        hvac_avg_rule = rule_line(hvac_area_df["Heating_tCO2e"].mean(), C_PROJ)
+
+        st.altair_chart((hvac_area + hvac_pts2 + hvac_roll + hvac_avg_rule).properties(**h_props(290)),
+                        use_container_width=True)
+        st.caption(f"Gold dashed = annual mean  ·  Pink = 3-mo rolling avg  ·  EF: {ef_hvac:.3f} kgCO₂e/kWh")
+
+    # ── Chart D: Cumulative HVAC vs vehicle S1 ───────────────────────────────
+    st.markdown('<div class="sec-label">Cumulative Scope 1 build-up — HVAC vs mobile combustion</div>', unsafe_allow_html=True)
+
+    cum_fuel_bus = np.cumsum(fuel_mo + bus_mo)
+    cum_hvac_s1  = np.cumsum(hvac_s1_monthly)
+    cum_s1_total = np.cumsum(fuel_mo + bus_mo + hvac_s1_monthly)
+
+    cum_s1_df = pd.DataFrame({
+        "Month":       MONTHS * 3,
+        "Series":      ["Mobile combustion"]*12 + ["HVAC Heating"]*12 + ["Total S1"]*12,
+        "Cumul_tCO2e": list(cum_fuel_bus) + list(cum_hvac_s1) + list(cum_s1_total),
+    })
+    cum_s1_df["Month"] = pd.Categorical(cum_s1_df["Month"], categories=MONTHS, ordered=True)
+
+    cum_s1_color = alt.Scale(
+        domain=["Mobile combustion","HVAC Heating","Total S1"],
+        range=[C_S1, C_TOT, C_ROLL]
+    )
+    cum_s1_lines = alt.Chart(cum_s1_df).mark_line(strokeWidth=2.2, interpolate=interp).encode(
+        x=mx(),
+        y=alt.Y("Cumul_tCO2e:Q", title="Cumulative tCO₂e"),
+        color=alt.Color("Series:N", scale=cum_s1_color,
+                        legend=alt.Legend(orient="top", title=None)),
+        tooltip=[alt.Tooltip("Month:N"), alt.Tooltip("Series:N"),
+                 alt.Tooltip("Cumul_tCO2e:Q", format=".4f", title="Cumulative tCO₂e")],
+    )
+    cum_s1_pts = alt.Chart(cum_s1_df).mark_point(filled=True, size=50).encode(
+        x=mx(),
+        y=alt.Y("Cumul_tCO2e:Q"),
+        color=alt.Color("Series:N", scale=cum_s1_color),
+    )
+    st.altair_chart((cum_s1_lines + cum_s1_pts).properties(**h_props(270)),
+                    use_container_width=True)
+
+    # ── Vehicle fuel bar ─────────────────────────────────────────────────────
+    st.markdown('<div class="sec-label">Vehicle fuel — liters & emissions</div>', unsafe_allow_html=True)
+    fuel_df = pd.DataFrame({
+        "Vehicle":["Diesel fleet","Peugeot Bipper (Feb)","Peugeot Bipper (Dec)"],
+        "Liters": [1741.5, 1520.8, 1520.8],
+        "tCO2e":  list(vehicle_raw["tCO2e"]),
+        "Fuel":   ["Diesel","Super Gasoline","Super Gasoline"],
+    })
+    fb = alt.Chart(fuel_df).mark_bar(
+        cornerRadiusTopLeft=3, cornerRadiusTopRight=3
+    ).encode(
+        x=alt.X("Vehicle:N", title=None,
+                axis=alt.Axis(labelAngle=-15, labelLimit=180)),
+        y=alt.Y("tCO2e:Q", title="tCO₂e"),
+        color=alt.Color("Fuel:N",
+            scale=alt.Scale(domain=["Diesel","Super Gasoline"],
+                            range=[C_S1,"#54A0FF"]),
+            legend=alt.Legend(orient="top")),
+        tooltip=[alt.Tooltip("Vehicle:N"), alt.Tooltip("Liters:Q", format=",.1f"),
+                 alt.Tooltip("tCO2e:Q", format=".4f", title="tCO₂e")],
+    )
+    fb_txt = fb.mark_text(dy=-8, fontSize=10, color=TEXT_MAIN,
+                           font="DM Mono, monospace").encode(
+        text=alt.Text("tCO2e:Q", format=".3f"))
+    st.altair_chart((fb+fb_txt).properties(**h_props(230)), use_container_width=True)
+
+    # ── Bus distances ─────────────────────────────────────────────────────────
     st.markdown('<div class="sec-label">Bus & van trip distances</div>', unsafe_allow_html=True)
     bus_bar = alt.Chart(bus_raw).mark_bar(
         color=C_S2, cornerRadiusTopRight=4, cornerRadiusBottomRight=4
@@ -988,8 +1139,8 @@ with tab5:
         text=alt.Text("Distance_km:Q", format=".1f"))
     st.altair_chart((bus_bar+bus_txt).properties(**h_props(180)), use_container_width=True)
 
-    # Tables
-    ct1, ct2 = st.columns(2)
+    # ── Data tables ──────────────────────────────────────────────────────────
+    ct1, ct2, ct3 = st.columns(3)
     with ct1:
         st.markdown("**Fuel voucher transactions**")
         dv = vehicle_raw[["Date","Source","Fuel_type","Liters","tCO2e"]].copy()
@@ -1003,6 +1154,16 @@ with tab5:
         db.columns = ["Date","Destination","Vehicle","km","tCO₂e"]
         db["tCO₂e"] = db["tCO₂e"].map("{:.6f}".format)
         st.dataframe(db, use_container_width=True, hide_index=True)
+    with ct3:
+        st.markdown("**HVAC monthly data**")
+        dh = hvac_df[["Month","Heating_kWh","Heating_tCO2e","Cooling_kWh","Cooling_tCO2e"]].copy()
+        dh.columns = ["Month","Heating kWh","Heating tCO₂e","Cooling kWh","Cooling tCO₂e (S2)"]
+        dh["Heating kWh"]       = dh["Heating kWh"].map(lambda x: f"{x:,.1f}" if x>0 else "—")
+        dh["Heating tCO₂e"]     = dh["Heating tCO₂e"].map(lambda x: f"{x:.4f}" if x>0 else "—")
+        dh["Cooling kWh"]       = dh["Cooling kWh"].map(lambda x: f"{x:,.1f}" if x>0 else "—")
+        dh["Cooling tCO₂e (S2)"]= dh["Cooling tCO₂e (S2)"].map(lambda x: f"{x:.4f}" if x>0 else "—")
+        st.dataframe(dh, use_container_width=True, hide_index=True)
+    st.caption(f"HVAC heating EF: {ef_hvac:.3f} kgCO₂e/kWh (natural gas) · Cooling is Scope 2 (electricity) · Avg {HVAC_HOURS_PER_MONTH:,} working hours/month")
 
 
 # ══════════════════════════════════════════════════════════════════════════════
