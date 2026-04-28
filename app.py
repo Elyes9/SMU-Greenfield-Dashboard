@@ -383,8 +383,8 @@ HVAC_COOL_KG      = hvac_cool_kg         # 25 kg from sidebar
 EF_REFRIGERANT    = ef_refrigerant       # 2088 kgCO₂e/kg from sidebar
 
 # Annual totals (tCO₂e)
-hvac_heat_annual_tco2e = HVAC_HEAT_KG * EF_REFRIGERANT / 1000   # 31.32 tCO₂e
-hvac_cool_annual_tco2e = HVAC_COOL_KG * EF_REFRIGERANT / 1000   # 52.20 tCO₂e
+hvac_heat_annual_tco2e = HVAC_HEAT_KG * EF_REFRIGERANT / 1000   # 0.03132 tCO₂e
+hvac_cool_annual_tco2e = HVAC_COOL_KG * EF_REFRIGERANT / 1000   # 0.05220 tCO₂e
 
 # Monthly distribution masks
 HEAT_MONTHS = [0,1,2,3,10,11]   # Jan Feb Mar Apr Nov Dec  (indices)
