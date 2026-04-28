@@ -382,9 +382,14 @@ HVAC_HEAT_KG      = hvac_heat_kg         # 15 kg from sidebar
 HVAC_COOL_KG      = hvac_cool_kg         # 25 kg from sidebar
 EF_REFRIGERANT    = ef_refrigerant       # 2088 kgCO₂e/kg from sidebar
 
-# Annual totals (tCO₂e)
-hvac_heat_annual_tco2e = HVAC_HEAT_KG * EF_REFRIGERANT / 1000   # 0.03132 tCO₂e
-hvac_cool_annual_tco2e = HVAC_COOL_KG * EF_REFRIGERANT / 1000   # 0.05220 tCO₂e
+# Annual totals — tCO₂e (used in all charts and aggregates)
+hvac_heat_annual_tco2e = HVAC_HEAT_KG * EF_REFRIGERANT / 1000   # 31.32 tCO₂e
+hvac_cool_annual_tco2e = HVAC_COOL_KG * EF_REFRIGERANT / 1000   # 52.20 tCO₂e
+
+# Raw kgCO₂e — used for display labels ONLY (never in chart data)
+hvac_heat_kgco2e = HVAC_HEAT_KG * EF_REFRIGERANT   # 31,320 kgCO₂e
+hvac_cool_kgco2e = HVAC_COOL_KG * EF_REFRIGERANT   # 52,200 kgCO₂e
+hvac_total_kgco2e = hvac_heat_kgco2e + hvac_cool_kgco2e  # 83,520 kgCO₂e
 
 # Monthly distribution masks
 HEAT_MONTHS = [0,1,2,3,10,11]   # Jan Feb Mar Apr Nov Dec  (indices)
@@ -562,8 +567,8 @@ k1,k2,k3,k4,k5,k6 = st.columns(6)
 k1.metric("Grand Total",        f"{total_all:.2f}",                  "tCO₂e · S1+S2")
 k2.metric("Scope 1",            f"{total_s1:.3f}",                   "tCO₂e · mobile+HVAC")
 k3.metric("Scope 2",            f"{total_s2:.2f}",                   "tCO₂e · electricity")
-k4.metric("🔥 HVAC Heating",   f"{total_s1heating*1000:,.0f}",       "kgCO₂e · R410A · S1")
-k5.metric("❄️ HVAC Cooling",   f"{total_s1cooling*1000:,.0f}",       "kgCO₂e · R410A · S1")
+k4.metric("🔥 HVAC Heating",   f"{hvac_heat_kgco2e:,.0f}",       "kgCO₂e · R410A · S1")
+k5.metric("❄️ HVAC Cooling",   f"{hvac_cool_kgco2e:,.0f}",       "kgCO₂e · R410A · S1")
 k6.metric("S2 Share",           f"{total_s2/total_all*100:.1f}%",    "of total emissions")
 
 st.markdown("---")
@@ -668,13 +673,13 @@ with tab1:
     with ib:
         st.markdown(f"""<div class="icard amber">
             <strong>🔥 HVAC Heating — R410A</strong>
-            <span class="val">{total_s1heating*1000:,.0f} kgCO₂e</span> ·
+            <span class="val">{hvac_heat_kgco2e:,.0f} kgCO₂e</span> ·
             15 kg × 2,088 kgCO₂e/kg. Active Jan–Apr &amp; Nov–Dec (6 months).
         </div>""", unsafe_allow_html=True)
     with ic:
         st.markdown(f"""<div class="icard violet">
             <strong>❄️ HVAC Cooling — R410A</strong>
-            <span class="val">{total_s1cooling*1000:,.0f} kgCO₂e</span> ·
+            <span class="val">{hvac_cool_kgco2e:,.0f} kgCO₂e</span> ·
             25 kg × 2,088 kgCO₂e/kg. Active May–Oct (6 months). Scope 1.
         </div>""", unsafe_allow_html=True)
     with id_:
@@ -880,15 +885,15 @@ with tab5:
     m1.metric("Total Scope 1",    f"{total_s1:.3f}",                    "tCO₂e")
     m2.metric("Fuel vouchers",    f"{total_s1v:.4f}",                   "tCO₂e · 3 tx")
     m3.metric("Bus / Van",        f"{total_s1b:.5f}",                   "tCO₂e · 5 trips")
-    m4.metric("🔥 HVAC Heating",  f"{total_s1heating*1000:,.0f}",       "kgCO₂e · R410A")
-    m5.metric("❄️ HVAC Cooling",  f"{total_s1cooling*1000:,.0f}",       "kgCO₂e · R410A")
+    m4.metric("🔥 HVAC Heating",  f"{hvac_heat_kgco2e:,.0f}",       "kgCO₂e · R410A")
+    m5.metric("❄️ HVAC Cooling",  f"{hvac_cool_kgco2e:,.0f}",       "kgCO₂e · R410A")
 
     # ── R410A Calculation Panel ───────────────────────────────────────────────
     st.markdown('<div class="sec-label">HVAC refrigerant — R410A emission calculation</div>', unsafe_allow_html=True)
 
-    heat_kgco2e = HVAC_HEAT_KG * EF_REFRIGERANT
-    cool_kgco2e = HVAC_COOL_KG * EF_REFRIGERANT
-    total_kgco2e = heat_kgco2e + cool_kgco2e
+    heat_kgco2e  = hvac_heat_kgco2e
+    cool_kgco2e  = hvac_cool_kgco2e
+    total_kgco2e = hvac_total_kgco2e
 
     ra, rb, rc, rd = st.columns(4)
     with ra:
@@ -900,23 +905,20 @@ with tab5:
     with rb:
         st.markdown(f"""<div class="icard amber">
             <strong>🔥 Heating load</strong>
-            <span style="font-family:DM Mono,monospace;font-size:1.1rem;color:#FF8C42;display:block;margin:6px 0 2px">{HVAC_HEAT_KG:.0f} kg × {EF_REFRIGERANT:,.0f}</span>
+            <span style="font-family:DM Mono,monospace;font-size:1.1rem;color:#FF8C42;display:block;margin:6px 0 2px">{HVAC_HEAT_KG:.0f} kg × {EF_REFRIGERANT:,.0f} kgCO₂e/kg</span>
             <span style="font-family:DM Mono,monospace;font-size:1.3rem;font-weight:700;color:#FF8C42">= {heat_kgco2e:,.0f} kgCO₂e</span>
-            <span class="val" style="display:block;margin-top:4px">= {heat_kgco2e/1000:.3f} tCO₂e</span>
         </div>""", unsafe_allow_html=True)
     with rc:
         st.markdown(f"""<div class="icard violet">
             <strong>❄️ Cooling load</strong>
-            <span style="font-family:DM Mono,monospace;font-size:1.1rem;color:#B57BFF;display:block;margin:6px 0 2px">{HVAC_COOL_KG:.0f} kg × {EF_REFRIGERANT:,.0f}</span>
+            <span style="font-family:DM Mono,monospace;font-size:1.1rem;color:#B57BFF;display:block;margin:6px 0 2px">{HVAC_COOL_KG:.0f} kg × {EF_REFRIGERANT:,.0f} kgCO₂e/kg</span>
             <span style="font-family:DM Mono,monospace;font-size:1.3rem;font-weight:700;color:#B57BFF">= {cool_kgco2e:,.0f} kgCO₂e</span>
-            <span class="val" style="display:block;margin-top:4px">= {cool_kgco2e/1000:.3f} tCO₂e</span>
         </div>""", unsafe_allow_html=True)
     with rd:
         st.markdown(f"""<div class="icard teal">
             <strong>∑ Total HVAC</strong>
-            <span style="font-family:DM Mono,monospace;font-size:0.9rem;color:#4E7090;display:block;margin:4px 0 2px">{heat_kgco2e:,.0f} + {cool_kgco2e:,.0f}</span>
+            <span style="font-family:DM Mono,monospace;font-size:0.9rem;color:#4E7090;display:block;margin:4px 0 2px">{heat_kgco2e:,.0f} + {cool_kgco2e:,.0f} kgCO₂e</span>
             <span style="font-family:DM Mono,monospace;font-size:1.3rem;font-weight:700;color:#00C9A7">= {total_kgco2e:,.0f} kgCO₂e</span>
-            <span class="val" style="display:block;margin-top:4px">= {total_kgco2e/1000:.3f} tCO₂e</span>
         </div>""", unsafe_allow_html=True)
 
     # ── Chart A: Stacked Scope 1 monthly ──────────────────────────────────────
@@ -1013,7 +1015,7 @@ with tab5:
         hvac_bars, heat_line+heat_pts, cool_line+cool_pts
     ).resolve_scale(y="independent").properties(**hp(320))
     st.altair_chart(hvac_combined, use_container_width=True)
-    st.caption(f"Bars = kWh load (left axis)  ·  △ amber = heating tCO₂e/month (S1)  ·  ▽ violet = cooling tCO₂e/month (S1)  ·  Annual totals: heating {total_s1heating*1000:,.0f} kgCO₂e · cooling {total_s1cooling*1000:,.0f} kgCO₂e · Refrigerant: R410A @ {EF_REFRIGERANT:,.0f} kgCO₂e/kg")
+    st.caption(f"Bars = kWh load (left axis)  ·  △ amber = heating (S1) · {heat_kgco2e:,.0f} kgCO₂e/year  ·  ▽ violet = cooling (S1) · {cool_kgco2e:,.0f} kgCO₂e/year  ·  R410A @ {EF_REFRIGERANT:,.0f} kgCO₂e/kg")
 
     # ── Chart C: HVAC tCO2e area — both on same chart, overlapping ───────────
     st.markdown('<div class="sec-label">HVAC tCO₂e — heating vs cooling, both Scope 1, same axis</div>', unsafe_allow_html=True)
@@ -1047,7 +1049,7 @@ with tab5:
     hvac_tco2_chart = (hvac_area_heat + hvac_area_cool +
                        hvac_pts_heat + hvac_pts_cool).properties(**hp(280))
     st.altair_chart(hvac_tco2_chart, use_container_width=True)
-    st.caption(f"Amber = heating · {HVAC_HEAT_KG:.0f} kg × {EF_REFRIGERANT:,.0f} = {total_s1heating*1000:,.0f} kgCO₂e ({total_s1heating:.3f} tCO₂e)  ·  Violet = cooling · {HVAC_COOL_KG:.0f} kg × {EF_REFRIGERANT:,.0f} = {total_s1cooling*1000:,.0f} kgCO₂e ({total_s1cooling:.3f} tCO₂e)  ·  Both Scope 1")
+    st.caption(f"Amber = heating · {HVAC_HEAT_KG:.0f} kg × {EF_REFRIGERANT:,.0f} = {heat_kgco2e:,.0f} kgCO₂e  ·  Violet = cooling · {HVAC_COOL_KG:.0f} kg × {EF_REFRIGERANT:,.0f} = {cool_kgco2e:,.0f} kgCO₂e  ·  Both Scope 1 · R410A refrigerant")
 
     # ── Chart D: Cumulative S1 build-up ──────────────────────────────────────
     st.markdown('<div class="sec-label">Cumulative Scope 1 — mobile vs HVAC heating vs HVAC cooling</div>', unsafe_allow_html=True)
@@ -1140,7 +1142,7 @@ with tab5:
         for col in ["Heat tCO₂e (S1)","Cool tCO₂e (S1)"]:
             dh[col] = dh[col].map(lambda x: f"{x:.4f}" if x>0 else "—")
         st.dataframe(dh, use_container_width=True, hide_index=True)
-    st.caption(f"R410A refrigerant · EF = {EF_REFRIGERANT:,.0f} kgCO₂e/kg (IPCC AR5 GWP100)  ·  Heating: {HVAC_HEAT_KG:.0f} kg → {total_s1heating*1000:,.0f} kgCO₂e  ·  Cooling: {HVAC_COOL_KG:.0f} kg → {total_s1cooling*1000:,.0f} kgCO₂e  ·  {HVAC_HOURS:,} avg working hrs/month")
+    st.caption(f"R410A refrigerant · EF = {EF_REFRIGERANT:,.0f} kgCO₂e/kg (IPCC AR5 GWP100)  ·  Heating: {HVAC_HEAT_KG:.0f} kg → {hvac_heat_kgco2e:,.0f} kgCO₂e  ·  Cooling: {HVAC_COOL_KG:.0f} kg → {hvac_cool_kgco2e:,.0f} kgCO₂e  ·  {HVAC_HOURS:,} avg working hrs/month")
 
 
 # ══════════════════════════════════════════════════════════════════════════════
