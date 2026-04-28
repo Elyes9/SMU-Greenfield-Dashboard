@@ -930,15 +930,25 @@ with tab5:
     for _, row in bus_raw.iterrows():
         bus_mo[int(row["Month_num"])-1] += row["tCO2e"]
 
+    # Build long dataframe — include kgCO2e column for HVAC tooltip display
     s1_long = pd.DataFrame({
-        "Month": MONTHS * 4,
-        "Type":  ["Fuel vouchers"]*12 + ["Bus/Van"]*12 + ["HVAC Heating"]*12 + ["HVAC Cooling"]*12,
-        "tCO2e": list(fuel_mo) + list(bus_mo) + list(hvac_s1_monthly) + list(hvac_cool_monthly),
+        "Month":   MONTHS * 4,
+        "Type":    ["Fuel vouchers"]*12 + ["Bus/Van"]*12 + ["HVAC Heating"]*12 + ["HVAC Cooling"]*12,
+        "tCO2e":  list(fuel_mo) + list(bus_mo) + list(hvac_s1_monthly) + list(hvac_cool_monthly),
+        # kgCO2e for HVAC = tCO2e × 1000; fuel/bus in tCO2e so set to 0 (won't be shown)
+        "kgCO2e": [0.0]*12 + [0.0]*12 +
+                  [v*1000 for v in hvac_s1_monthly] +
+                  [v*1000 for v in hvac_cool_monthly],
+        "Unit":   ["tCO₂e"]*12 + ["tCO₂e"]*12 + ["kgCO₂e"]*12 + ["kgCO₂e"]*12,
     })
     s1_long["Month"] = pd.Categorical(s1_long["Month"], categories=MONTHS, ordered=True)
 
-    s1_bars = alt.Chart(s1_long).mark_bar(
-        cornerRadiusTopLeft=4, cornerRadiusTopRight=4, width={"band":.7}
+    # Fuel & bus bars — tooltip in tCO₂e
+    fuel_bus_df = s1_long[s1_long["Unit"] == "tCO₂e"]
+    hvac_df_long = s1_long[s1_long["Unit"] == "kgCO₂e"]
+
+    bars_fuel = alt.Chart(fuel_bus_df).mark_bar(
+        cornerRadiusTopLeft=4, cornerRadiusTopRight=4, width={"band": .7}
     ).encode(
         x=mx(), y=alt.Y("tCO2e:Q", stack="zero", title="tCO₂e"),
         color=alt.Color("Type:N",
@@ -948,9 +958,27 @@ with tab5:
         tooltip=[alt.Tooltip("Month:N"), alt.Tooltip("Type:N"),
                  alt.Tooltip("tCO2e:Q", format=".5f", title="tCO₂e")],
     )
+
+    # HVAC bars — tooltip in kgCO₂e
+    bars_hvac = alt.Chart(hvac_df_long).mark_bar(
+        cornerRadiusTopLeft=4, cornerRadiusTopRight=4, width={"band": .7}
+    ).encode(
+        x=mx(), y=alt.Y("tCO2e:Q", stack="zero", title="tCO₂e"),
+        color=alt.Color("Type:N",
+            scale=alt.Scale(domain=["Fuel vouchers","Bus/Van","HVAC Heating","HVAC Cooling"],
+                            range=[C_S1, "#54A0FF", C_HEAT, "#B57BFF"]),
+            legend=None),
+        tooltip=[alt.Tooltip("Month:N"), alt.Tooltip("Type:N"),
+                 alt.Tooltip("kgCO2e:Q", format=",.2f", title="kgCO₂e")],
+    )
+
     s1_ov_line = smooth_line(trend_df, "Scope1", C_ROLL, 1.8, [4,2], label="Total S1")
     s1_ov_pts  = glow_point(trend_df, "Scope1", C_ROLL, 42)
-    st.altair_chart((s1_bars + s1_ov_line + s1_ov_pts).properties(**hp(300)), use_container_width=True)
+    st.altair_chart(
+        (bars_fuel + bars_hvac + s1_ov_line + s1_ov_pts).properties(**hp(300)),
+        use_container_width=True
+    )
+    st.caption(f"Y-axis in tCO₂e for all sources  ·  HVAC tooltip shows kgCO₂e: Heating {hvac_heat_kgco2e:,.0f} kgCO₂e/year · Cooling {hvac_cool_kgco2e:,.0f} kgCO₂e/year")
 
     # ── Chart B: HVAC heating & cooling on SAME chart ─────────────────────────
     st.markdown('<div class="sec-label">HVAC — heating & cooling loads on the same chart (both Scope 1)</div>', unsafe_allow_html=True)
