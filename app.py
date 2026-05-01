@@ -371,58 +371,58 @@ bus_raw["tCO2e"] = bus_raw["Distance_km"] * ef_bus_km / 1000
 
 # ── HVAC — R410A refrigerant-based calculation ──────────────────────────────
 # Refrigerant: R410A, EF = 2,088 kgCO₂e / kg (IPCC AR5 GWP100)
-# Heating circuit: 15 kg  →  15 × 2,088 = 31,320 kgCO₂e = 31.32 tCO₂e (annual)
-# Cooling circuit: 25 kg  →  25 × 2,088 = 52,200 kgCO₂e = 52.20 tCO₂e (annual)
+# Heating circuit: 15 kg × 2,088 = 31,320 kgCO₂e (annual)
+# Cooling circuit: 25 kg × 2,088 = 52,200 kgCO₂e (annual)
+# Total HVAC:                       83,520 kgCO₂e (annual)
 # Monthly distribution: heating active Jan–Apr + Nov–Dec (6 months → equal split)
-#                       cooling  active May–Oct (6 months → equal split)
+#                       cooling  active May–Oct             (6 months → equal split)
 
 HVAC_HOURS        = 1700
 REFRIGERANT_TYPE  = refrigerant_type     # "R410A"
 HVAC_HEAT_KG      = hvac_heat_kg         # 15 kg from sidebar
 HVAC_COOL_KG      = hvac_cool_kg         # 25 kg from sidebar
-EF_REFRIGERANT    = ef_refrigerant       # 2088 kgCO₂e/kg from sidebar
+EF_REFRIGERANT    = ef_refrigerant       # 2,088 kgCO₂e/kg from sidebar
 
-# Annual totals — tCO₂e (used in all charts and aggregates)
-hvac_heat_annual_tco2e = HVAC_HEAT_KG * EF_REFRIGERANT / 1000   # 31.32 tCO₂e
-hvac_cool_annual_tco2e = HVAC_COOL_KG * EF_REFRIGERANT / 1000   # 52.20 tCO₂e
-
-# Raw kgCO₂e — used for display labels ONLY (never in chart data)
-hvac_heat_kgco2e = HVAC_HEAT_KG * EF_REFRIGERANT   # 31,320 kgCO₂e
-hvac_cool_kgco2e = HVAC_COOL_KG * EF_REFRIGERANT   # 52,200 kgCO₂e
+# Annual totals in kgCO₂e (the true unit — no division)
+hvac_heat_kgco2e  = HVAC_HEAT_KG * EF_REFRIGERANT    # 31,320 kgCO₂e
+hvac_cool_kgco2e  = HVAC_COOL_KG * EF_REFRIGERANT    # 52,200 kgCO₂e
 hvac_total_kgco2e = hvac_heat_kgco2e + hvac_cool_kgco2e  # 83,520 kgCO₂e
 
 # Monthly distribution masks
-HEAT_MONTHS = [0,1,2,3,10,11]   # Jan Feb Mar Apr Nov Dec  (indices)
-COOL_MONTHS = [4,5,6,7,8,9]     # May Jun Jul Aug Sep Oct  (indices)
+HEAT_MONTHS = [0,1,2,3,10,11]   # Jan Feb Mar Apr Nov Dec
+COOL_MONTHS = [4,5,6,7,8,9]     # May Jun Jul Aug Sep Oct
 
 hvac_heating_kwh = np.array([2287.5, 2316.8, 2391.0, 2415.5,    0,    0,
                                   0,      0,      0,      0, 2349.1, 2305.8])
 hvac_cooling_kwh = np.array([   0,      0,      0,      0, 2445.0, 2500.0,
                               2502.3, 2498.5, 2456.8, 2403.7,    0,     0])
 
-# Monthly tCO₂e — equal share of annual total across active months
-hvac_heat_tco2e_mo = np.zeros(12)
-hvac_cool_tco2e_mo = np.zeros(12)
+# Monthly kgCO₂e — equal share of annual total across active months
+hvac_heat_kgco2e_mo = np.zeros(12)
+hvac_cool_kgco2e_mo = np.zeros(12)
 for i in HEAT_MONTHS:
-    hvac_heat_tco2e_mo[i] = hvac_heat_annual_tco2e / len(HEAT_MONTHS)
+    hvac_heat_kgco2e_mo[i] = hvac_heat_kgco2e / len(HEAT_MONTHS)   # 5,220 kgCO₂e/month
 for i in COOL_MONTHS:
-    hvac_cool_tco2e_mo[i] = hvac_cool_annual_tco2e / len(COOL_MONTHS)
+    hvac_cool_kgco2e_mo[i] = hvac_cool_kgco2e / len(COOL_MONTHS)   # 8,700 kgCO₂e/month
 
 hvac_df = pd.DataFrame({
     "Month":            MONTHS,
     "Month_num":        MONTH_NUMS,
     "Heating_kWh":      hvac_heating_kwh,
     "Cooling_kWh":      hvac_cooling_kwh,
-    "Heating_tCO2e":    hvac_heat_tco2e_mo,
-    "Cooling_tCO2e":    hvac_cool_tco2e_mo,
+    "Heating_kgCO2e":   hvac_heat_kgco2e_mo,
+    "Cooling_kgCO2e":   hvac_cool_kgco2e_mo,
 })
 hvac_df["Total_kWh"] = hvac_df["Heating_kWh"] + hvac_df["Cooling_kWh"]
 hvac_df["Month"] = pd.Categorical(hvac_df["Month"], categories=MONTHS, ordered=True)
 
-total_hvac_heating = hvac_heat_annual_tco2e
-total_hvac_cooling = hvac_cool_annual_tco2e
-hvac_s1_monthly    = hvac_heat_tco2e_mo    # heating Scope 1 monthly
-hvac_cool_monthly  = hvac_cool_tco2e_mo    # cooling Scope 1 monthly
+# For chart mixing (tCO₂e): keep kgCO₂e monthly arrays as-is
+# total in kgCO₂e for display
+total_hvac_heating = hvac_heat_kgco2e   # 31,320 kgCO₂e
+total_hvac_cooling = hvac_cool_kgco2e   # 52,200 kgCO₂e
+# Scope 1 monthly series used in all charts — keep in kgCO₂e
+hvac_s1_monthly   = hvac_heat_kgco2e_mo
+hvac_cool_monthly = hvac_cool_kgco2e_mo
 
 elec_df = pd.DataFrame({
     "Month":     MONTHS,
@@ -439,9 +439,9 @@ elec_df["tCO2e"] = elec_df["kWh"] * ef_grid / 1000
 total_s2        = elec_df["tCO2e"].sum()
 total_s1v       = vehicle_raw["tCO2e"].sum()
 total_s1b       = bus_raw["tCO2e"].sum()
-total_s1heating = total_hvac_heating
-total_s1cooling = total_hvac_cooling
-total_s1hvac    = total_s1heating + total_s1cooling   # both now Scope 1
+total_s1heating = hvac_heat_kgco2e / 1000   # 31,320 kgCO₂e → 31.32 tCO₂e
+total_s1cooling = hvac_cool_kgco2e / 1000   # 52,200 kgCO₂e → 52.20 tCO₂e
+total_s1hvac    = total_s1heating + total_s1cooling
 total_s1        = total_s1v + total_s1b + total_s1hvac
 total_all       = total_s1 + total_s2
 total_kwh       = int(elec_kwh.sum())
@@ -452,8 +452,8 @@ for _, row in vehicle_raw.iterrows():
 for _, row in bus_raw.iterrows():
     s1_mobile[int(row["Month_num"])-1] += row["tCO2e"]
 
-# Scope 1 = mobile combustion + HVAC heating + HVAC cooling
-s1_monthly    = s1_mobile + hvac_s1_monthly + hvac_cool_monthly
+# Convert HVAC monthly kgCO₂e → tCO₂e for mixing with mobile (tCO₂e) series
+s1_monthly    = s1_mobile + hvac_s1_monthly/1000 + hvac_cool_monthly/1000
 s2_monthly    = elec_df["tCO2e"].values.copy()
 total_monthly = s1_monthly + s2_monthly
 
@@ -934,11 +934,13 @@ with tab5:
     s1_long = pd.DataFrame({
         "Month":   MONTHS * 4,
         "Type":    ["Fuel vouchers"]*12 + ["Bus/Van"]*12 + ["HVAC Heating"]*12 + ["HVAC Cooling"]*12,
-        "tCO2e":  list(fuel_mo) + list(bus_mo) + list(hvac_s1_monthly) + list(hvac_cool_monthly),
+        "tCO2e":  list(fuel_mo) + list(bus_mo) +
+                  [v/1000 for v in hvac_s1_monthly] +
+                  [v/1000 for v in hvac_cool_monthly],
         # kgCO2e for HVAC = tCO2e × 1000; fuel/bus in tCO2e so set to 0 (won't be shown)
         "kgCO2e": [0.0]*12 + [0.0]*12 +
-                  [v*1000 for v in hvac_s1_monthly] +
-                  [v*1000 for v in hvac_cool_monthly],
+                  list(hvac_s1_monthly) +
+                  list(hvac_cool_monthly),
         "Unit":   ["tCO₂e"]*12 + ["tCO₂e"]*12 + ["kgCO₂e"]*12 + ["kgCO₂e"]*12,
     })
     s1_long["Month"] = pd.Categorical(s1_long["Month"], categories=MONTHS, ordered=True)
@@ -981,7 +983,7 @@ with tab5:
     st.caption(f"Y-axis in tCO₂e for all sources  ·  HVAC tooltip shows kgCO₂e: Heating {hvac_heat_kgco2e:,.0f} kgCO₂e/year · Cooling {hvac_cool_kgco2e:,.0f} kgCO₂e/year")
 
     # ── Chart B: HVAC heating & cooling on SAME chart ─────────────────────────
-    st.markdown('<div class="sec-label">HVAC — heating & cooling loads on the same chart (both Scope 1)</div>', unsafe_allow_html=True)
+    st.markdown('<div class="sec-label">HVAC — heating & cooling loads on the same chart (both Scope 1) — kgCO₂e</div>', unsafe_allow_html=True)
 
     # Build long-form HVAC kWh with both types
     hvac_long = pd.DataFrame({
@@ -989,11 +991,12 @@ with tab5:
         "Type":   ["🔥 Heating (Scope 1)"]*12 + ["❄️ Cooling (Scope 1)"]*12,
         "kWh":    list(hvac_heating_kwh) + list(hvac_cooling_kwh),
         "tCO2e":  list(hvac_df["Heating_tCO2e"]) + list(hvac_df["Cooling_tCO2e"]),
-        "Scope":  ["Scope 1 — gas combustion"]*12 + ["Scope 1 — refrigerant/electric"]*12,
+        "kgCO2e": list(hvac_df["Heating_kgCO2e"]) + list(hvac_df["Cooling_kgCO2e"]),
+        "Scope":  ["Scope 1 — R410A refrigerant"]*12 + ["Scope 1 — R410A refrigerant"]*12,
     })
     hvac_long["Month"] = pd.Categorical(hvac_long["Month"], categories=MONTHS, ordered=True)
 
-    # Grouped bars: heating vs cooling side-by-side each month
+    # Grouped bars: heating vs cooling side-by-side (kWh — left axis)
     hvac_bars = alt.Chart(hvac_long[hvac_long["kWh"]>0]).mark_bar(
         cornerRadiusTopLeft=4, cornerRadiusTopRight=4, width={"band":.75}
     ).encode(
@@ -1006,85 +1009,109 @@ with tab5:
         xOffset=alt.XOffset("Type:N"),
         tooltip=[alt.Tooltip("Month:N"), alt.Tooltip("Type:N"),
                  alt.Tooltip("kWh:Q", format=",.1f", title="kWh"),
-                 alt.Tooltip("tCO2e:Q", format=".4f", title="tCO₂e"),
+                 alt.Tooltip("kgCO2e:Q", format=",.2f", title="kgCO₂e"),
                  alt.Tooltip("Scope:N")],
     )
 
-    # Heating tCO2e line (right axis) — amber, solid
+    # Add kgCO2e column to heat/cool point dataframes — already kgCO₂e in hvac_df
     heat_pts_df = hvac_df[hvac_df["Heating_kWh"]>0].copy()
     cool_pts_df = hvac_df[hvac_df["Cooling_kWh"]>0].copy()
 
+    # Heating kgCO₂e line (right axis) — amber, solid
     heat_line = alt.Chart(heat_pts_df).mark_line(
         color=C_HEAT, strokeWidth=2.4, interpolate=interp
     ).encode(
         x=mx(),
-        y=alt.Y("Heating_tCO2e:Q", title="tCO₂e", axis=alt.Axis(titleColor=C_HEAT)),
+        y=alt.Y("Heating_kgCO2e:Q", title="kgCO₂e", axis=alt.Axis(titleColor=C_HEAT)),
         tooltip=[alt.Tooltip("Month:N"),
-                 alt.Tooltip("Heating_tCO2e:Q", format=".4f", title="Heating tCO₂e (S1)")],
+                 alt.Tooltip("Heating_kgCO2e:Q", format=",.2f", title="Heating kgCO₂e (S1)")],
     )
     heat_pts = alt.Chart(heat_pts_df).mark_point(
         color=C_HEAT, filled=True, size=60, shape="triangle-up"
-    ).encode(x=mx(), y=alt.Y("Heating_tCO2e:Q"))
+    ).encode(
+        x=mx(), y=alt.Y("Heating_kgCO2e:Q"),
+        tooltip=[alt.Tooltip("Month:N"),
+                 alt.Tooltip("Heating_kgCO2e:Q", format=",.2f", title="Heating kgCO₂e (S1)")],
+    )
 
-    # Cooling tCO2e line (right axis) — violet, dashed — now Scope 1
+    # Cooling kgCO₂e line (right axis) — violet, dashed
     cool_line = alt.Chart(cool_pts_df).mark_line(
         color="#B57BFF", strokeWidth=2.4, interpolate=interp, strokeDash=[4,2]
     ).encode(
         x=mx(),
-        y=alt.Y("Cooling_tCO2e:Q", title="tCO₂e"),
+        y=alt.Y("Cooling_kgCO2e:Q", title="kgCO₂e"),
         tooltip=[alt.Tooltip("Month:N"),
-                 alt.Tooltip("Cooling_tCO2e:Q", format=".4f", title="Cooling tCO₂e (S1)")],
+                 alt.Tooltip("Cooling_kgCO2e:Q", format=",.2f", title="Cooling kgCO₂e (S1)")],
     )
     cool_pts = alt.Chart(cool_pts_df).mark_point(
         color="#B57BFF", filled=True, size=60, shape="triangle-down"
-    ).encode(x=mx(), y=alt.Y("Cooling_tCO2e:Q"))
+    ).encode(
+        x=mx(), y=alt.Y("Cooling_kgCO2e:Q"),
+        tooltip=[alt.Tooltip("Month:N"),
+                 alt.Tooltip("Cooling_kgCO2e:Q", format=",.2f", title="Cooling kgCO₂e (S1)")],
+    )
 
     hvac_combined = alt.layer(
         hvac_bars, heat_line+heat_pts, cool_line+cool_pts
     ).resolve_scale(y="independent").properties(**hp(320))
     st.altair_chart(hvac_combined, use_container_width=True)
-    st.caption(f"Bars = kWh load (left axis)  ·  △ amber = heating (S1) · {heat_kgco2e:,.0f} kgCO₂e/year  ·  ▽ violet = cooling (S1) · {cool_kgco2e:,.0f} kgCO₂e/year  ·  R410A @ {EF_REFRIGERANT:,.0f} kgCO₂e/kg")
+    st.caption(
+        f"Bars = kWh load (left axis)  ·  "
+        f"△ amber = heating (S1) · {hvac_heat_kgco2e:,.0f} kgCO₂e/year  ·  "
+        f"▽ violet = cooling (S1) · {hvac_cool_kgco2e:,.0f} kgCO₂e/year  ·  "
+        f"R410A @ {EF_REFRIGERANT:,.0f} kgCO₂e/kg  ·  Right axis = kgCO₂e"
+    )
 
-    # ── Chart C: HVAC tCO2e area — both on same chart, overlapping ───────────
-    st.markdown('<div class="sec-label">HVAC tCO₂e — heating vs cooling, both Scope 1, same axis</div>', unsafe_allow_html=True)
-
-    hvac_tco2_long = pd.DataFrame({
-        "Month":  MONTHS*2,
-        "Type":   ["Heating (S1)"]*12 + ["Cooling (S2 info)"]*12,
-        "tCO2e":  list(hvac_df["Heating_tCO2e"]) + list(hvac_df["Cooling_tCO2e"]),
-    })
-    hvac_tco2_long["Month"] = pd.Categorical(hvac_tco2_long["Month"],categories=MONTHS,ordered=True)
+    # ── Chart C: HVAC kgCO₂e area — both on same chart, overlapping ──────────
+    st.markdown('<div class="sec-label">HVAC kgCO₂e — heating vs cooling, both Scope 1, same axis</div>', unsafe_allow_html=True)
 
     hvac_area_heat = alt.Chart(hvac_df).mark_area(
         color=C_HEAT, opacity=0.14, interpolate=interp,
         line={"color":C_HEAT,"strokeWidth":2.2}
     ).encode(
-        x=mx(), y=alt.Y("Heating_tCO2e:Q",title="tCO₂e",stack=None),
+        x=mx(), y=alt.Y("Heating_kgCO2e:Q", title="kgCO₂e", stack=None),
         tooltip=[alt.Tooltip("Month:N"),
-                 alt.Tooltip("Heating_tCO2e:Q",format=".4f",title="Heating tCO₂e S1")],
+                 alt.Tooltip("Heating_kgCO2e:Q", format=",.2f", title="Heating kgCO₂e (S1)")],
     )
     hvac_area_cool = alt.Chart(hvac_df).mark_area(
         color="#B57BFF", opacity=0.14, interpolate=interp,
         line={"color":"#B57BFF","strokeWidth":2.2,"strokeDash":[4,2]}
     ).encode(
-        x=mx(), y=alt.Y("Cooling_tCO2e:Q",title="tCO₂e",stack=None),
+        x=mx(), y=alt.Y("Cooling_kgCO2e:Q", title="kgCO₂e", stack=None),
         tooltip=[alt.Tooltip("Month:N"),
-                 alt.Tooltip("Cooling_tCO2e:Q",format=".4f",title="Cooling tCO₂e S1")],
+                 alt.Tooltip("Cooling_kgCO2e:Q", format=",.2f", title="Cooling kgCO₂e (S1)")],
     )
-    hvac_pts_heat = glow_point(hvac_df,"Heating_tCO2e",C_HEAT,55)
-    hvac_pts_cool = glow_point(hvac_df,"Cooling_tCO2e","#B57BFF",55)
+    hvac_pts_heat = alt.Chart(hvac_df).mark_point(
+        color=C_HEAT, filled=True, size=55
+    ).encode(
+        x=mx(), y=alt.Y("Heating_kgCO2e:Q"),
+        tooltip=[alt.Tooltip("Month:N"),
+                 alt.Tooltip("Heating_kgCO2e:Q", format=",.2f", title="Heating kgCO₂e (S1)")],
+    )
+    hvac_pts_cool = alt.Chart(hvac_df).mark_point(
+        color="#B57BFF", filled=True, size=55
+    ).encode(
+        x=mx(), y=alt.Y("Cooling_kgCO2e:Q"),
+        tooltip=[alt.Tooltip("Month:N"),
+                 alt.Tooltip("Cooling_kgCO2e:Q", format=",.2f", title="Cooling kgCO₂e (S1)")],
+    )
 
     hvac_tco2_chart = (hvac_area_heat + hvac_area_cool +
                        hvac_pts_heat + hvac_pts_cool).properties(**hp(280))
     st.altair_chart(hvac_tco2_chart, use_container_width=True)
-    st.caption(f"Amber = heating · {HVAC_HEAT_KG:.0f} kg × {EF_REFRIGERANT:,.0f} = {heat_kgco2e:,.0f} kgCO₂e  ·  Violet = cooling · {HVAC_COOL_KG:.0f} kg × {EF_REFRIGERANT:,.0f} = {cool_kgco2e:,.0f} kgCO₂e  ·  Both Scope 1 · R410A refrigerant")
+    st.caption(
+        f"Amber = heating · {HVAC_HEAT_KG:.0f} kg × {EF_REFRIGERANT:,.0f} = "
+        f"{hvac_heat_kgco2e:,.0f} kgCO₂e  ·  "
+        f"Violet = cooling · {HVAC_COOL_KG:.0f} kg × {EF_REFRIGERANT:,.0f} = "
+        f"{hvac_cool_kgco2e:,.0f} kgCO₂e  ·  Both Scope 1 · R410A refrigerant"
+    )
 
     # ── Chart D: Cumulative S1 build-up ──────────────────────────────────────
     st.markdown('<div class="sec-label">Cumulative Scope 1 — mobile vs HVAC heating vs HVAC cooling</div>', unsafe_allow_html=True)
     cum_mob      = np.cumsum(fuel_mo + bus_mo)
-    cum_hvac_h   = np.cumsum(hvac_s1_monthly)
-    cum_hvac_c   = np.cumsum(hvac_cool_monthly)
-    cum_s1t      = np.cumsum(fuel_mo + bus_mo + hvac_s1_monthly + hvac_cool_monthly)
+    cum_hvac_h   = np.cumsum(hvac_s1_monthly / 1000)
+    cum_hvac_c   = np.cumsum(hvac_cool_monthly / 1000)
+    cum_s1t      = np.cumsum(fuel_mo + bus_mo + hvac_s1_monthly/1000 + hvac_cool_monthly/1000)
 
     cum_s1_df = pd.DataFrame({
         "Month":  MONTHS * 4,
