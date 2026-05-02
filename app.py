@@ -371,22 +371,23 @@ bus_raw["tCO2e"] = bus_raw["Distance_km"] * ef_bus_km / 1000
 
 # ── HVAC — R410A refrigerant-based calculation ──────────────────────────────
 # Refrigerant: R410A, EF = 2,088 kgCO₂e / kg (IPCC AR5 GWP100)
-# Heating circuit: 15 kg × 2,088 = 31,320 kgCO₂e (annual)
-# Cooling circuit: 25 kg × 2,088 = 52,200 kgCO₂e (annual)
-# Total HVAC:                       83,520 kgCO₂e (annual)
-# Monthly distribution: heating active Jan–Apr + Nov–Dec (6 months → equal split)
-#                       cooling  active May–Oct             (6 months → equal split)
+# Heating circuit: 15 kg × 2,088 = 31,320 kgCO₂e (annual) = 0.03132 tCO₂e
+# Cooling circuit: 25 kg × 2,088 = 52,200 kgCO₂e (annual) = 0.05220 tCO₂e
+# Total HVAC:                       83,520 kgCO₂e (annual) = 0.08352 tCO₂e
 
-HVAC_HOURS        = 1700
-REFRIGERANT_TYPE  = refrigerant_type     # "R410A"
 HVAC_HEAT_KG      = hvac_heat_kg         # 15 kg from sidebar
 HVAC_COOL_KG      = hvac_cool_kg         # 25 kg from sidebar
 EF_REFRIGERANT    = ef_refrigerant       # 2,088 kgCO₂e/kg from sidebar
 
-# Annual totals in kgCO₂e (the true unit — no division)
+# Annual totals in kgCO₂e
 hvac_heat_kgco2e  = HVAC_HEAT_KG * EF_REFRIGERANT    # 31,320 kgCO₂e
 hvac_cool_kgco2e  = HVAC_COOL_KG * EF_REFRIGERANT    # 52,200 kgCO₂e
 hvac_total_kgco2e = hvac_heat_kgco2e + hvac_cool_kgco2e  # 83,520 kgCO₂e
+
+# Annual totals in tCO₂e (CORRECTED - small values)
+total_s1heating = hvac_heat_kgco2e / 1000000   # 0.03132 tCO₂e
+total_s1cooling = hvac_cool_kgco2e / 1000000   # 0.05220 tCO₂e
+total_s1hvac    = total_s1heating + total_s1cooling  # 0.08352 tCO₂e
 
 # Monthly distribution masks
 HEAT_MONTHS = [0,1,2,3,10,11]   # Jan Feb Mar Apr Nov Dec
@@ -413,16 +414,10 @@ hvac_df = pd.DataFrame({
     "Heating_kgCO2e":   hvac_heat_kgco2e_mo,
     "Cooling_kgCO2e":   hvac_cool_kgco2e_mo,
 })
+hvac_df["Heating_tCO2e"] = hvac_df["Heating_kgCO2e"] / 1000000
+hvac_df["Cooling_tCO2e"] = hvac_df["Cooling_kgCO2e"] / 1000000
 hvac_df["Total_kWh"] = hvac_df["Heating_kWh"] + hvac_df["Cooling_kWh"]
 hvac_df["Month"] = pd.Categorical(hvac_df["Month"], categories=MONTHS, ordered=True)
-
-# For chart mixing (tCO₂e): keep kgCO₂e monthly arrays as-is
-# total in kgCO₂e for display
-total_hvac_heating = hvac_heat_kgco2e   # 31,320 kgCO₂e
-total_hvac_cooling = hvac_cool_kgco2e   # 52,200 kgCO₂e
-# Scope 1 monthly series used in all charts — keep in kgCO₂e
-hvac_s1_monthly   = hvac_heat_kgco2e_mo
-hvac_cool_monthly = hvac_cool_kgco2e_mo
 
 elec_df = pd.DataFrame({
     "Month":     MONTHS,
@@ -439,9 +434,6 @@ elec_df["tCO2e"] = elec_df["kWh"] * ef_grid / 1000
 total_s2        = elec_df["tCO2e"].sum()
 total_s1v       = vehicle_raw["tCO2e"].sum()
 total_s1b       = bus_raw["tCO2e"].sum()
-total_s1heating = hvac_heat_kgco2e / 1000   # 31,320 kgCO₂e → 31.32 tCO₂e
-total_s1cooling = hvac_cool_kgco2e / 1000   # 52,200 kgCO₂e → 52.20 tCO₂e
-total_s1hvac    = total_s1heating + total_s1cooling
 total_s1        = total_s1v + total_s1b + total_s1hvac
 total_all       = total_s1 + total_s2
 total_kwh       = int(elec_kwh.sum())
@@ -452,8 +444,8 @@ for _, row in vehicle_raw.iterrows():
 for _, row in bus_raw.iterrows():
     s1_mobile[int(row["Month_num"])-1] += row["tCO2e"]
 
-# Convert HVAC monthly kgCO₂e → tCO₂e for mixing with mobile (tCO₂e) series
-s1_monthly    = s1_mobile + hvac_s1_monthly/1000 + hvac_cool_monthly/1000
+# Convert HVAC monthly kgCO₂e → tCO₂e (divide by 1,000,000 for proper small values)
+s1_monthly    = s1_mobile + hvac_heat_kgco2e_mo/1000000 + hvac_cool_kgco2e_mo/1000000
 s2_monthly    = elec_df["tCO2e"].values.copy()
 total_monthly = s1_monthly + s2_monthly
 
@@ -487,8 +479,8 @@ trend_df = pd.DataFrame({
     "Scope1":      s1_monthly,
     "Scope2":      s2_monthly,
     "Total":       total_monthly,
-    "HVAC_Heat":   hvac_s1_monthly,
-    "HVAC_Cool":   hvac_cool_monthly,
+    "HVAC_Heat":   hvac_heat_kgco2e_mo/1000000,
+    "HVAC_Cool":   hvac_cool_kgco2e_mo/1000000,
     "Roll_S1":     roll_s1,
     "Roll_S2":     roll_s2,
     "Roll_Total":  roll_total,
@@ -520,13 +512,13 @@ def smooth_line(df, y_col, color, width=2.5, dash=None, opacity=1.0, label=None,
     return alt.Chart(df).mark_line(**props).encode(
         x=mx(), y=alt.Y(f"{y_col}:Q", title=y_title),
         tooltip=[alt.Tooltip("Month:N"),
-                 alt.Tooltip(f"{y_col}:Q", format=".4f", title=label or y_col)],
+                 alt.Tooltip(f"{y_col}:Q", format=".6f", title=label or y_col)],
     )
 
 def glow_point(df, y_col, color, size=60, y_title="tCO₂e"):
     return alt.Chart(df).mark_point(color=color, filled=True, size=size, opacity=0.9).encode(
         x=mx(), y=alt.Y(f"{y_col}:Q", title=y_title),
-        tooltip=[alt.Tooltip("Month:N"), alt.Tooltip(f"{y_col}:Q", format=".4f")],
+        tooltip=[alt.Tooltip("Month:N"), alt.Tooltip(f"{y_col}:Q", format=".6f")],
     )
 
 def area_fill(df, y_col, color, opacity=0.13, y_title="tCO₂e"):
@@ -535,7 +527,7 @@ def area_fill(df, y_col, color, opacity=0.13, y_title="tCO₂e"):
         line={"color": color, "strokeWidth": 2.2, "opacity": .9},
     ).encode(
         x=mx(), y=alt.Y(f"{y_col}:Q", title=y_title),
-        tooltip=[alt.Tooltip("Month:N"), alt.Tooltip(f"{y_col}:Q", format=".4f", title=y_title)],
+        tooltip=[alt.Tooltip("Month:N"), alt.Tooltip(f"{y_col}:Q", format=".6f", title=y_title)],
     )
 
 def hline(val, color, dash=[5,3]):
@@ -564,12 +556,12 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 k1,k2,k3,k4,k5,k6 = st.columns(6)
-k1.metric("Grand Total",        f"{total_all:.2f}",                  "tCO₂e · S1+S2")
-k2.metric("Scope 1",            f"{total_s1:.3f}",                   "tCO₂e · mobile+HVAC")
-k3.metric("Scope 2",            f"{total_s2:.2f}",                   "tCO₂e · electricity")
-k4.metric("🔥 HVAC Heating",   f"{hvac_heat_kgco2e:,.0f}",       "kgCO₂e · R410A · S1")
-k5.metric("❄️ HVAC Cooling",   f"{hvac_cool_kgco2e:,.0f}",       "kgCO₂e · R410A · S1")
-k6.metric("S2 Share",           f"{total_s2/total_all*100:.1f}%",    "of total emissions")
+k1.metric("Grand Total",        f"{total_all:.4f}",                  "tCO₂e · S1+S2")
+k2.metric("Scope 1",            f"{total_s1:.5f}",                   "tCO₂e · mobile+HVAC")
+k3.metric("Scope 2",            f"{total_s2:.4f}",                   "tCO₂e · electricity")
+k4.metric("🔥 HVAC Heating",    f"{total_s1heating:.6f}",            "tCO₂e · R410A · S1")
+k5.metric("❄️ HVAC Cooling",    f"{total_s1cooling:.6f}",            "tCO₂e · R410A · S1")
+k6.metric("S2 Share",           f"{total_s2/total_all*100:.2f}%",    "of total emissions")
 
 st.markdown("---")
 
@@ -596,12 +588,12 @@ with tab1:
         st.markdown('<div class="sec-label">Emissions split by source</div>', unsafe_allow_html=True)
         donut_df = pd.DataFrame({
             "Scope": ["S1 · Mobile Combustion","S1 · HVAC Heating","S1 · HVAC Cooling","Scope 2 · Electricity"],
-            "tCO2e": [round(total_s1v+total_s1b,4), round(total_s1heating,4),
-                      round(total_s1cooling,4),      round(total_s2,4)],
-            "Pct":   [round((total_s1v+total_s1b)/total_all*100,1),
-                      round(total_s1heating/total_all*100,1),
-                      round(total_s1cooling/total_all*100,1),
-                      round(total_s2/total_all*100,1)],
+            "tCO2e": [round(total_s1v+total_s1b,6), round(total_s1heating,6),
+                      round(total_s1cooling,6),      round(total_s2,4)],
+            "Pct":   [round((total_s1v+total_s1b)/total_all*100,2),
+                      round(total_s1heating/total_all*100,2),
+                      round(total_s1cooling/total_all*100,2),
+                      round(total_s2/total_all*100,2)],
         })
         arc = alt.Chart(donut_df).mark_arc(innerRadius=78, outerRadius=132, padAngle=0.025).encode(
             theta=alt.Theta("tCO2e:Q"),
@@ -612,8 +604,8 @@ with tab1:
                                   symbolType="circle", symbolSize=90,
                                   labelFontSize=10)),
             tooltip=[alt.Tooltip("Scope:N"),
-                     alt.Tooltip("tCO2e:Q", format=".4f", title="tCO₂e"),
-                     alt.Tooltip("Pct:Q",   format=".1f",  title="%")],
+                     alt.Tooltip("tCO2e:Q", format=".6f", title="tCO₂e"),
+                     alt.Tooltip("Pct:Q",   format=".2f",  title="%")],
         ).properties(height=310)
         st.altair_chart(arc, use_container_width=True)
 
@@ -631,7 +623,7 @@ with tab1:
                 scale=alt.Scale(domain=["Scope 1","Scope 2"], range=[C_S1, C_S2]),
                 legend=alt.Legend(orient="top", title=None)),
             tooltip=[alt.Tooltip("Month:N"), alt.Tooltip("Scope:N"),
-                     alt.Tooltip("tCO2e:Q", format=".4f", title="tCO₂e")],
+                     alt.Tooltip("tCO2e:Q", format=".6f", title="tCO₂e")],
         )
         tot_line = smooth_line(trend_df, "Total", C_TOT, 2.2, label="Total")
         tot_pts  = glow_point(trend_df, "Total", C_TOT, 50)
@@ -656,37 +648,37 @@ with tab1:
             scale=alt.Scale(domain=["Vehicle fuel","Distance-based","HVAC Heating","HVAC Cooling"],
                             range=[C_S1, C_S2, C_HEAT, "#B57BFF"]),
             legend=alt.Legend(orient="right")),
-        tooltip=[alt.Tooltip("Source:N"), alt.Tooltip("tCO2e:Q", format=".5f", title="tCO₂e")],
+        tooltip=[alt.Tooltip("Source:N"), alt.Tooltip("tCO2e:Q", format=".6f", title="tCO₂e")],
     ).properties(height=185)
     src_txt = src_bar.mark_text(align="left", dx=6, fontSize=10, color=TEXT_M,
                                  font="DM Mono, monospace").encode(
-        text=alt.Text("tCO2e:Q", format=".4f"))
+        text=alt.Text("tCO2e:Q", format=".6f"))
     st.altair_chart(src_bar + src_txt, use_container_width=True)
 
     ia, ib, ic, id_ = st.columns(4)
     with ia:
         st.markdown(f"""<div class="icard blue">
             <strong>🚗 Diesel — top Scope 1 event</strong>
-            <span class="val">{vehicle_raw.iloc[0]['tCO2e']:.3f} tCO₂e</span> from
+            <span class="val">{vehicle_raw.iloc[0]['tCO2e']:.6f} tCO₂e</span> from
             1,742 L diesel in February. Single largest mobile combustion transaction.
         </div>""", unsafe_allow_html=True)
     with ib:
         st.markdown(f"""<div class="icard amber">
             <strong>🔥 HVAC Heating — R410A</strong>
-            <span class="val">{hvac_heat_kgco2e:,.0f} kgCO₂e</span> ·
-            15 kg × 2,088 kgCO₂e/kg. Active Jan–Apr &amp; Nov–Dec (6 months).
+            <span class="val">{total_s1heating:.6f} tCO₂e</span> ·
+            {HVAC_HEAT_KG:.0f} kg × {EF_REFRIGERANT:,.0f} kgCO₂e/kg = {hvac_heat_kgco2e:,.0f} kgCO₂e
         </div>""", unsafe_allow_html=True)
     with ic:
         st.markdown(f"""<div class="icard violet">
             <strong>❄️ HVAC Cooling — R410A</strong>
-            <span class="val">{hvac_cool_kgco2e:,.0f} kgCO₂e</span> ·
-            25 kg × 2,088 kgCO₂e/kg. Active May–Oct (6 months). Scope 1.
+            <span class="val">{total_s1cooling:.6f} tCO₂e</span> ·
+            {HVAC_COOL_KG:.0f} kg × {EF_REFRIGERANT:,.0f} kgCO₂e/kg = {hvac_cool_kgco2e:,.0f} kgCO₂e
         </div>""", unsafe_allow_html=True)
     with id_:
         st.markdown(f"""<div class="icard teal">
             <strong>⚡ Electricity dominates</strong>
-            <span class="val">{total_s2/total_all*100:.1f}%</span> of total GHG.
-            July peak: 48,569 kWh → {elec_df.iloc[6]['tCO2e']:.2f} tCO₂e.
+            <span class="val">{total_s2/total_all*100:.2f}%</span> of total GHG.
+            July peak: 48,569 kWh → {elec_df.iloc[6]['tCO2e']:.4f} tCO₂e.
         </div>""", unsafe_allow_html=True)
 
 
@@ -731,7 +723,7 @@ with tab2:
             scale=alt.Scale(domain=["Scope 1","Scope 2"], range=[C_S1, C_S2]),
             legend=alt.Legend(orient="top", title=None)),
         tooltip=[alt.Tooltip("Month:N"), alt.Tooltip("Scope:N"),
-                 alt.Tooltip("tCO2e:Q", format=".4f", title="tCO₂e")],
+                 alt.Tooltip("tCO2e:Q", format=".6f", title="tCO₂e")],
     )
     st.altair_chart((area_stk + smooth_line(trend_df,"Total",C_TOT,2.2) +
                      glow_point(trend_df,"Total",C_TOT,42)).properties(**hp(270)),
@@ -746,11 +738,11 @@ with tab2:
             cornerRadiusTopLeft=3, cornerRadiusTopRight=3,
             cornerRadiusBottomLeft=3, cornerRadiusBottomRight=3, width={"band":.6}
         ).encode(
-            x=mx(), y=alt.Y("MoM_Change:Q",title="% vs prior month",axis=alt.Axis(format=".1f")),
+            x=mx(), y=alt.Y("MoM_Change:Q",title="% vs prior month",axis=alt.Axis(format=".2f")),
             color=alt.Color("Dir:N",
                 scale=alt.Scale(domain=["▲ Increase","▼ Decrease"],range=[C_TGT,C_S2]),
                 legend=alt.Legend(orient="top",title=None)),
-            tooltip=[alt.Tooltip("Month:N"), alt.Tooltip("MoM_Change:Q",format=".1f",title="MoM %")],
+            tooltip=[alt.Tooltip("Month:N"), alt.Tooltip("MoM_Change:Q",format=".2f",title="MoM %")],
         )
         zero = alt.Chart(pd.DataFrame({"y":[0]})).mark_rule(color=GRID_C,strokeWidth=1.1).encode(y="y:Q")
         mom_line = smooth_line(mom_df,"MoM_Change",C_ROLL,1.4,[3,2],.55,"Trend")
@@ -765,7 +757,7 @@ with tab2:
                             legend=alt.Legend(orient="right",title="Month",
                                              labelFontSize=9,symbolSize=55)),
             tooltip=[alt.Tooltip("Month:N"),alt.Tooltip("kWh:Q",format=",.0f",title="kWh"),
-                     alt.Tooltip("Scope2:Q",format=".3f",title="tCO₂e")],
+                     alt.Tooltip("Scope2:Q",format=".4f",title="tCO₂e")],
         )
         reg = scatter.transform_regression("kWh","Scope2").mark_line(
             color=C_PROJ, strokeDash=[5,3], strokeWidth=1.8)
@@ -790,7 +782,7 @@ with tab3:
     for col,color in [("Cum_Total",C_CUM),("Cum_S2",C_S2),("Cum_S1",C_S1)]:
         ann = alt.Chart(ey).mark_text(align="right",dx=-7,dy=-11,fontSize=10,
             color=color,font="DM Mono, monospace").encode(
-            x=mx(), y=alt.Y(f"{col}:Q"), text=alt.Text(f"{col}:Q",format=".2f"))
+            x=mx(), y=alt.Y(f"{col}:Q"), text=alt.Text(f"{col}:Q",format=".4f"))
         cum_chart = cum_chart + ann
     st.altair_chart(cum_chart.properties(**hp(330)), use_container_width=True)
 
@@ -800,7 +792,7 @@ with tab3:
         pct_a = alt.Chart(trend_df).mark_area(color=C_CUM,opacity=0.11,interpolate=interp,
             line={"color":C_CUM,"strokeWidth":2.2}).encode(
             x=mx(), y=alt.Y("Pct_Annual:Q",title="% of annual",scale=alt.Scale(domain=[0,108])),
-            tooltip=[alt.Tooltip("Month:N"),alt.Tooltip("Pct_Annual:Q",format=".1f",title="% annual")],
+            tooltip=[alt.Tooltip("Month:N"),alt.Tooltip("Pct_Annual:Q",format=".2f",title="% annual")],
         )
         pct_p = glow_point(trend_df,"Pct_Annual",C_CUM,52,"% of annual")
         st.altair_chart((pct_a+pct_p+hline(50,TEXT_C,[4,3])+hline(100,C_TGT,[2,2])).properties(**hp(260)),
@@ -821,8 +813,8 @@ with tab3:
     ct = trend_df[["Month","Scope1","Scope2","Total","Cum_S1","Cum_S2","Cum_Total","Pct_Annual"]].copy()
     ct.columns = ["Month","S1 (t)","S2 (t)","Total (t)","Cum S1","Cum S2","Cum Total","% Annual"]
     for c in ["S1 (t)","S2 (t)","Total (t)","Cum S1","Cum S2","Cum Total"]:
-        ct[c] = ct[c].map("{:.4f}".format)
-    ct["% Annual"] = ct["% Annual"].map("{:.1f}%".format)
+        ct[c] = ct[c].map("{:.6f}".format)
+    ct["% Annual"] = ct["% Annual"].map("{:.2f}%".format)
     st.dataframe(ct, use_container_width=True, hide_index=True)
 
 
@@ -859,7 +851,7 @@ with tab4:
                 legend=alt.Legend(orient="top",title=None)),
             xOffset=alt.XOffset("Scope:N"),
             tooltip=[alt.Tooltip("Month:N"),alt.Tooltip("Scope:N"),
-                     alt.Tooltip("Share:Q",format=".1f",title="%")],
+                     alt.Tooltip("Share:Q",format=".2f",title="%")],
         ).properties(**hp(270))
         st.altair_chart(share_bar, use_container_width=True)
 
@@ -869,7 +861,7 @@ with tab4:
         radius=alt.Radius("Total:Q", scale=alt.Scale(type="sqrt",zero=True,rangeMin=45)),
         color=alt.Color("Total:Q", scale=alt.Scale(scheme="plasma"),
                         legend=alt.Legend(title="tCO₂e",orient="right")),
-        tooltip=[alt.Tooltip("Month:N"), alt.Tooltip("Total:Q",format=".4f",title="Total tCO₂e")],
+        tooltip=[alt.Tooltip("Month:N"), alt.Tooltip("Total:Q",format=".6f",title="Total tCO₂e")],
     ).properties(height=310)
     st.altair_chart(radial, use_container_width=True)
 
@@ -882,11 +874,11 @@ with tab5:
     st.markdown(" ")
 
     m1,m2,m3,m4,m5 = st.columns(5)
-    m1.metric("Total Scope 1",    f"{total_s1:.3f}",                    "tCO₂e")
-    m2.metric("Fuel vouchers",    f"{total_s1v:.4f}",                   "tCO₂e · 3 tx")
-    m3.metric("Bus / Van",        f"{total_s1b:.5f}",                   "tCO₂e · 5 trips")
-    m4.metric("🔥 HVAC Heating",  f"{hvac_heat_kgco2e:,.0f}",       "kgCO₂e · R410A")
-    m5.metric("❄️ HVAC Cooling",  f"{hvac_cool_kgco2e:,.0f}",       "kgCO₂e · R410A")
+    m1.metric("Total Scope 1",    f"{total_s1:.6f}",                    "tCO₂e")
+    m2.metric("Fuel vouchers",    f"{total_s1v:.6f}",                   "tCO₂e · 3 tx")
+    m3.metric("Bus / Van",        f"{total_s1b:.6f}",                   "tCO₂e · 5 trips")
+    m4.metric("🔥 HVAC Heating",  f"{total_s1heating:.6f}",             "tCO₂e · R410A")
+    m5.metric("❄️ HVAC Cooling",  f"{total_s1cooling:.6f}",             "tCO₂e · R410A")
 
     # ── R410A Calculation Panel ───────────────────────────────────────────────
     st.markdown('<div class="sec-label">HVAC refrigerant — R410A emission calculation</div>', unsafe_allow_html=True)
@@ -894,31 +886,34 @@ with tab5:
     heat_kgco2e  = hvac_heat_kgco2e
     cool_kgco2e  = hvac_cool_kgco2e
     total_kgco2e = hvac_total_kgco2e
+    heat_tco2e   = total_s1heating
+    cool_tco2e   = total_s1cooling
+    total_tco2e  = total_s1hvac
 
     ra, rb, rc, rd = st.columns(4)
     with ra:
         st.markdown(f"""<div class="icard blue" style="border-left-color:#B57BFF">
             <strong>🧊 Refrigerant type</strong>
-            <span style="font-family:DM Mono,monospace;font-size:1.4rem;font-weight:700;color:#B57BFF;display:block;margin:8px 0 4px">{REFRIGERANT_TYPE}</span>
+            <span style="font-family:DM Mono,monospace;font-size:1.4rem;font-weight:700;color:#B57BFF;display:block;margin:8px 0 4px">{refrigerant_type}</span>
             <span class="val">EF = {EF_REFRIGERANT:,.0f} kgCO₂e / kg</span>
         </div>""", unsafe_allow_html=True)
     with rb:
         st.markdown(f"""<div class="icard amber">
             <strong>🔥 Heating load</strong>
             <span style="font-family:DM Mono,monospace;font-size:1.1rem;color:#FF8C42;display:block;margin:6px 0 2px">{HVAC_HEAT_KG:.0f} kg × {EF_REFRIGERANT:,.0f} kgCO₂e/kg</span>
-            <span style="font-family:DM Mono,monospace;font-size:1.3rem;font-weight:700;color:#FF8C42">= {heat_kgco2e:,.0f} kgCO₂e</span>
+            <span style="font-family:DM Mono,monospace;font-size:1.3rem;font-weight:700;color:#FF8C42">= {heat_kgco2e:,.0f} kgCO₂e <span style="font-size:0.9rem;">({heat_tco2e:.6f} tCO₂e)</span></span>
         </div>""", unsafe_allow_html=True)
     with rc:
         st.markdown(f"""<div class="icard violet">
             <strong>❄️ Cooling load</strong>
             <span style="font-family:DM Mono,monospace;font-size:1.1rem;color:#B57BFF;display:block;margin:6px 0 2px">{HVAC_COOL_KG:.0f} kg × {EF_REFRIGERANT:,.0f} kgCO₂e/kg</span>
-            <span style="font-family:DM Mono,monospace;font-size:1.3rem;font-weight:700;color:#B57BFF">= {cool_kgco2e:,.0f} kgCO₂e</span>
+            <span style="font-family:DM Mono,monospace;font-size:1.3rem;font-weight:700;color:#B57BFF">= {cool_kgco2e:,.0f} kgCO₂e <span style="font-size:0.9rem;">({cool_tco2e:.6f} tCO₂e)</span></span>
         </div>""", unsafe_allow_html=True)
     with rd:
         st.markdown(f"""<div class="icard teal">
             <strong>∑ Total HVAC</strong>
             <span style="font-family:DM Mono,monospace;font-size:0.9rem;color:#4E7090;display:block;margin:4px 0 2px">{heat_kgco2e:,.0f} + {cool_kgco2e:,.0f} kgCO₂e</span>
-            <span style="font-family:DM Mono,monospace;font-size:1.3rem;font-weight:700;color:#00C9A7">= {total_kgco2e:,.0f} kgCO₂e</span>
+            <span style="font-family:DM Mono,monospace;font-size:1.3rem;font-weight:700;color:#00C9A7">= {total_kgco2e:,.0f} kgCO₂e <span style="font-size:0.9rem;">({total_tco2e:.6f} tCO₂e)</span></span>
         </div>""", unsafe_allow_html=True)
 
     # ── Chart A: Stacked Scope 1 monthly ──────────────────────────────────────
@@ -930,22 +925,20 @@ with tab5:
     for _, row in bus_raw.iterrows():
         bus_mo[int(row["Month_num"])-1] += row["tCO2e"]
 
-    # Build long dataframe — include kgCO2e column for HVAC tooltip display
+    # Build long dataframe
     s1_long = pd.DataFrame({
         "Month":   MONTHS * 4,
         "Type":    ["Fuel vouchers"]*12 + ["Bus/Van"]*12 + ["HVAC Heating"]*12 + ["HVAC Cooling"]*12,
         "tCO2e":  list(fuel_mo) + list(bus_mo) +
-                  [v/1000 for v in hvac_s1_monthly] +
-                  [v/1000 for v in hvac_cool_monthly],
-        # kgCO2e for HVAC = tCO2e × 1000; fuel/bus in tCO2e so set to 0 (won't be shown)
+                  [v/1000000 for v in hvac_heat_kgco2e_mo] +
+                  [v/1000000 for v in hvac_cool_kgco2e_mo],
         "kgCO2e": [0.0]*12 + [0.0]*12 +
-                  list(hvac_s1_monthly) +
-                  list(hvac_cool_monthly),
+                  list(hvac_heat_kgco2e_mo) +
+                  list(hvac_cool_kgco2e_mo),
         "Unit":   ["tCO₂e"]*12 + ["tCO₂e"]*12 + ["kgCO₂e"]*12 + ["kgCO₂e"]*12,
     })
     s1_long["Month"] = pd.Categorical(s1_long["Month"], categories=MONTHS, ordered=True)
 
-    # Fuel & bus bars — tooltip in tCO₂e
     fuel_bus_df = s1_long[s1_long["Unit"] == "tCO₂e"]
     hvac_df_long = s1_long[s1_long["Unit"] == "kgCO₂e"]
 
@@ -958,10 +951,9 @@ with tab5:
                             range=[C_S1, "#54A0FF", C_HEAT, "#B57BFF"]),
             legend=alt.Legend(orient="top", title=None)),
         tooltip=[alt.Tooltip("Month:N"), alt.Tooltip("Type:N"),
-                 alt.Tooltip("tCO2e:Q", format=".5f", title="tCO₂e")],
+                 alt.Tooltip("tCO2e:Q", format=".6f", title="tCO₂e")],
     )
 
-    # HVAC bars — tooltip in kgCO₂e
     bars_hvac = alt.Chart(hvac_df_long).mark_bar(
         cornerRadiusTopLeft=4, cornerRadiusTopRight=4, width={"band": .7}
     ).encode(
@@ -985,18 +977,15 @@ with tab5:
     # ── Chart B: HVAC heating & cooling on SAME chart ─────────────────────────
     st.markdown('<div class="sec-label">HVAC — heating & cooling loads on the same chart (both Scope 1) — kgCO₂e</div>', unsafe_allow_html=True)
 
-    # Build long-form HVAC kWh with both types
     hvac_long = pd.DataFrame({
         "Month":  MONTHS * 2,
         "Type":   ["🔥 Heating (Scope 1)"]*12 + ["❄️ Cooling (Scope 1)"]*12,
         "kWh":    list(hvac_heating_kwh) + list(hvac_cooling_kwh),
-        "tCO2e":  list(hvac_df["Heating_tCO2e"]) + list(hvac_df["Cooling_tCO2e"]),
         "kgCO2e": list(hvac_df["Heating_kgCO2e"]) + list(hvac_df["Cooling_kgCO2e"]),
         "Scope":  ["Scope 1 — R410A refrigerant"]*12 + ["Scope 1 — R410A refrigerant"]*12,
     })
     hvac_long["Month"] = pd.Categorical(hvac_long["Month"], categories=MONTHS, ordered=True)
 
-    # Grouped bars: heating vs cooling side-by-side (kWh — left axis)
     hvac_bars = alt.Chart(hvac_long[hvac_long["kWh"]>0]).mark_bar(
         cornerRadiusTopLeft=4, cornerRadiusTopRight=4, width={"band":.75}
     ).encode(
@@ -1013,11 +1002,9 @@ with tab5:
                  alt.Tooltip("Scope:N")],
     )
 
-    # Add kgCO2e column to heat/cool point dataframes — already kgCO₂e in hvac_df
     heat_pts_df = hvac_df[hvac_df["Heating_kWh"]>0].copy()
     cool_pts_df = hvac_df[hvac_df["Cooling_kWh"]>0].copy()
 
-    # Heating kgCO₂e line (right axis) — amber, solid
     heat_line = alt.Chart(heat_pts_df).mark_line(
         color=C_HEAT, strokeWidth=2.4, interpolate=interp
     ).encode(
@@ -1034,7 +1021,6 @@ with tab5:
                  alt.Tooltip("Heating_kgCO2e:Q", format=",.2f", title="Heating kgCO₂e (S1)")],
     )
 
-    # Cooling kgCO₂e line (right axis) — violet, dashed
     cool_line = alt.Chart(cool_pts_df).mark_line(
         color="#B57BFF", strokeWidth=2.4, interpolate=interp, strokeDash=[4,2]
     ).encode(
@@ -1057,8 +1043,8 @@ with tab5:
     st.altair_chart(hvac_combined, use_container_width=True)
     st.caption(
         f"Bars = kWh load (left axis)  ·  "
-        f"△ amber = heating (S1) · {hvac_heat_kgco2e:,.0f} kgCO₂e/year  ·  "
-        f"▽ violet = cooling (S1) · {hvac_cool_kgco2e:,.0f} kgCO₂e/year  ·  "
+        f"△ amber = heating (S1) · {hvac_heat_kgco2e:,.0f} kgCO₂e/year ({total_s1heating:.6f} tCO₂e)  ·  "
+        f"▽ violet = cooling (S1) · {hvac_cool_kgco2e:,.0f} kgCO₂e/year ({total_s1cooling:.6f} tCO₂e)  ·  "
         f"R410A @ {EF_REFRIGERANT:,.0f} kgCO₂e/kg  ·  Right axis = kgCO₂e"
     )
 
@@ -1101,17 +1087,18 @@ with tab5:
     st.altair_chart(hvac_tco2_chart, use_container_width=True)
     st.caption(
         f"Amber = heating · {HVAC_HEAT_KG:.0f} kg × {EF_REFRIGERANT:,.0f} = "
-        f"{hvac_heat_kgco2e:,.0f} kgCO₂e  ·  "
+        f"{hvac_heat_kgco2e:,.0f} kgCO₂e ({total_s1heating:.6f} tCO₂e)  ·  "
         f"Violet = cooling · {HVAC_COOL_KG:.0f} kg × {EF_REFRIGERANT:,.0f} = "
-        f"{hvac_cool_kgco2e:,.0f} kgCO₂e  ·  Both Scope 1 · R410A refrigerant"
+        f"{hvac_cool_kgco2e:,.0f} kgCO₂e ({total_s1cooling:.6f} tCO₂e)  ·  "
+        f"Both Scope 1 · R410A refrigerant"
     )
 
     # ── Chart D: Cumulative S1 build-up ──────────────────────────────────────
     st.markdown('<div class="sec-label">Cumulative Scope 1 — mobile vs HVAC heating vs HVAC cooling</div>', unsafe_allow_html=True)
     cum_mob      = np.cumsum(fuel_mo + bus_mo)
-    cum_hvac_h   = np.cumsum(hvac_s1_monthly / 1000)
-    cum_hvac_c   = np.cumsum(hvac_cool_monthly / 1000)
-    cum_s1t      = np.cumsum(fuel_mo + bus_mo + hvac_s1_monthly/1000 + hvac_cool_monthly/1000)
+    cum_hvac_h   = np.cumsum(hvac_heat_kgco2e_mo / 1000000)
+    cum_hvac_c   = np.cumsum(hvac_cool_kgco2e_mo / 1000000)
+    cum_s1t      = np.cumsum(fuel_mo + bus_mo + hvac_heat_kgco2e_mo/1000000 + hvac_cool_kgco2e_mo/1000000)
 
     cum_s1_df = pd.DataFrame({
         "Month":  MONTHS * 4,
@@ -1129,7 +1116,7 @@ with tab5:
         color=alt.Color("Series:N", scale=cs1_scale,
                         legend=alt.Legend(orient="top", title=None)),
         tooltip=[alt.Tooltip("Month:N"), alt.Tooltip("Series:N"),
-                 alt.Tooltip("Cum:Q", format=".4f", title="Cumulative tCO₂e")],
+                 alt.Tooltip("Cum:Q", format=".6f", title="Cumulative tCO₂e")],
     )
     cs1_pts = alt.Chart(cum_s1_df).mark_point(filled=True, size=50).encode(
         x=mx(), y=alt.Y("Cum:Q"),
@@ -1152,10 +1139,10 @@ with tab5:
             scale=alt.Scale(domain=["Diesel","Super Gasoline"],range=[C_S1,"#54A0FF"]),
             legend=alt.Legend(orient="top")),
         tooltip=[alt.Tooltip("Vehicle:N"),alt.Tooltip("Liters:Q",format=",.1f"),
-                 alt.Tooltip("tCO2e:Q",format=".4f",title="tCO₂e")],
+                 alt.Tooltip("tCO2e:Q",format=".6f",title="tCO₂e")],
     )
     fb_txt = fb.mark_text(dy=-8,fontSize=10,color=TEXT_M,font="DM Mono, monospace").encode(
-        text=alt.Text("tCO2e:Q",format=".3f"))
+        text=alt.Text("tCO2e:Q",format=".6f"))
     st.altair_chart((fb+fb_txt).properties(**hp(220)), use_container_width=True)
 
     # ── Bus bar ───────────────────────────────────────────────────────────────
@@ -1180,7 +1167,7 @@ with tab5:
         dv = vehicle_raw[["Date","Source","Fuel_type","Liters","tCO2e"]].copy()
         dv.columns = ["Date","Source","Fuel","Liters","tCO₂e"]
         dv["Liters"] = dv["Liters"].map("{:,.1f}".format)
-        dv["tCO₂e"]  = dv["tCO₂e"].map("{:.5f}".format)
+        dv["tCO₂e"]  = dv["tCO₂e"].map("{:.6f}".format)
         st.dataframe(dv, use_container_width=True, hide_index=True)
     with ct2:
         st.markdown("**Bus / van trips**")
@@ -1195,9 +1182,9 @@ with tab5:
         for col in ["Heat kWh","Cool kWh"]:
             dh[col] = dh[col].map(lambda x: f"{x:,.1f}" if x>0 else "—")
         for col in ["Heat tCO₂e (S1)","Cool tCO₂e (S1)"]:
-            dh[col] = dh[col].map(lambda x: f"{x:.4f}" if x>0 else "—")
+            dh[col] = dh[col].map(lambda x: f"{x:.6f}" if x>0 else "—")
         st.dataframe(dh, use_container_width=True, hide_index=True)
-    st.caption(f"R410A refrigerant · EF = {EF_REFRIGERANT:,.0f} kgCO₂e/kg (IPCC AR5 GWP100)  ·  Heating: {HVAC_HEAT_KG:.0f} kg → {hvac_heat_kgco2e:,.0f} kgCO₂e  ·  Cooling: {HVAC_COOL_KG:.0f} kg → {hvac_cool_kgco2e:,.0f} kgCO₂e  ·  {HVAC_HOURS:,} avg working hrs/month")
+    st.caption(f"R410A refrigerant · EF = {EF_REFRIGERANT:,.0f} kgCO₂e/kg (IPCC AR5 GWP100)  ·  Heating: {HVAC_HEAT_KG:.0f} kg → {hvac_heat_kgco2e:,.0f} kgCO₂e ({total_s1heating:.6f} tCO₂e)  ·  Cooling: {HVAC_COOL_KG:.0f} kg → {hvac_cool_kgco2e:,.0f} kgCO₂e ({total_s1cooling:.6f} tCO₂e)")
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -1208,11 +1195,11 @@ with tab6:
     st.markdown(" ")
 
     m1,m2,m3,m4,m5 = st.columns(5)
-    m1.metric("Total Scope 2",     f"{total_s2:.3f}", "tCO₂e")
+    m1.metric("Total Scope 2",     f"{total_s2:.4f}", "tCO₂e")
     m2.metric("Total consumption", f"{total_kwh/1000:.1f}", "MWh")
     m3.metric("Monthly average",   f"{int(total_kwh/12):,}", "kWh")
     m4.metric("Peak month",        "July · 48,569", "kWh")
-    m5.metric("Grid factor",       f"{ef_grid:.3f}", "kgCO₂e / kWh")
+    m5.metric("Grid factor",       f"{ef_grid:.4f}", "kgCO₂e / kWh")
 
     # ── Chart A: Dual-axis bar+line ───────────────────────────────────────────
     st.markdown('<div class="sec-label">Monthly electricity (kWh) vs emissions (tCO₂e)</div>', unsafe_allow_html=True)
@@ -1225,15 +1212,15 @@ with tab6:
         x=mx(),
         y=alt.Y("kWh:Q", title="kWh", axis=alt.Axis(titleColor=C_S2)),
         tooltip=[alt.Tooltip("Month:N"),alt.Tooltip("kWh:Q",format=",.0f",title="kWh"),
-                 alt.Tooltip("tCO2e:Q",format=".3f",title="tCO₂e")],
+                 alt.Tooltip("tCO2e:Q",format=".4f",title="tCO₂e")],
     )
     line_co2 = alt.Chart(elec_plot).mark_line(color=C_S2,strokeWidth=2.8,interpolate=interp).encode(
         x=mx(), y=alt.Y("tCO2e:Q",title="tCO₂e",axis=alt.Axis(titleColor=C_S2)),
-        tooltip=[alt.Tooltip("Month:N"),alt.Tooltip("tCO2e:Q",format=".3f",title="tCO₂e")],
+        tooltip=[alt.Tooltip("Month:N"),alt.Tooltip("tCO2e:Q",format=".4f",title="tCO₂e")],
     )
     pts_co2 = alt.Chart(elec_plot).mark_point(color=C_S2,filled=True,size=65).encode(
         x=mx(), y=alt.Y("tCO2e:Q"),
-        tooltip=[alt.Tooltip("Month:N"),alt.Tooltip("tCO2e:Q",format=".3f",title="tCO₂e")],
+        tooltip=[alt.Tooltip("Month:N"),alt.Tooltip("tCO2e:Q",format=".4f",title="tCO₂e")],
     )
     avg_rule = hline(elec_kwh.mean(), C_TGT)
     dual = alt.layer(bar_kwh, avg_rule, line_co2+pts_co2).resolve_scale(y="independent")
