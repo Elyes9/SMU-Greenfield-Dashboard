@@ -2,8 +2,6 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import altair as alt
-from pathlib import Path
-import base64
 
 st.set_page_config(
     page_title="GHG Carbon Monitor · 2025",
@@ -13,27 +11,21 @@ st.set_page_config(
 )
 
 # ─────────────────────────────────────────────────────────────────────────────
-# LOGO HELPER
+# LOGOS — base64 strings baked in via _logos.py (no runtime file I/O)
 # ─────────────────────────────────────────────────────────────────────────────
-def img_to_b64(path: str) -> str:
-    with open(path, "rb") as f:
-        return base64.b64encode(f.read()).decode()
-
-# Try to load logos — gracefully skip if files not present
-_dir = Path(__file__).parent
-_logo_cj  = _dir / "carbon_jar_logo (1).jfif"
-_logo_smu = _dir / "LOGO_SMU_2023_FINAL.png"
-
-logo_cj_html  = (
-    f'<img src="data:image/png;base64,{img_to_b64(str(_logo_cj))}"  '
-    f'style="height:52px;width:auto;object-fit:contain;" />'
-    if _logo_cj.exists() else ""
-)
-logo_smu_html = (
-    f'<img src="data:image/png;base64,{img_to_b64(str(_logo_smu))}" '
-    f'style="height:48px;width:auto;object-fit:contain;filter:brightness(1.15);" />'
-    if _logo_smu.exists() else ""
-)
+try:
+    from _logos import CARBON_JAR_B64, SMU_B64
+    logo_cj_html  = (
+        f'<img src="data:image/png;base64,{CARBON_JAR_B64}" '
+        f'style="height:52px;width:auto;object-fit:contain;border-radius:8px;" />'
+    )
+    logo_smu_html = (
+        f'<img src="data:image/jpeg;base64,{SMU_B64}" '
+        f'style="height:48px;width:auto;object-fit:contain;filter:brightness(1.1);" />'
+    )
+except ImportError:
+    logo_cj_html  = ""
+    logo_smu_html = ""
 
 # ─────────────────────────────────────────────────────────────────────────────
 # DESIGN SYSTEM
