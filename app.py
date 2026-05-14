@@ -22,7 +22,7 @@ def img_to_b64(path: str) -> str:
 # Try to load logos — gracefully skip if files not present
 _dir = Path(__file__).parent
 _logo_cj  = _dir / "carbon_jar_logo.png"
-_logo_smu = _dir / "LOGO_SMU.png"
+_logo_smu = _dir / "LOGO_SMU_2023_FINAL.png"
 
 logo_cj_html  = (
     f'<img src="data:image/png;base64,{img_to_b64(str(_logo_cj))}"  '
