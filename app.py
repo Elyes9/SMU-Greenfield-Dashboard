@@ -2,12 +2,37 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import altair as alt
+from pathlib import Path
+import base64
 
 st.set_page_config(
     page_title="GHG Carbon Monitor · 2025",
     page_icon="🌿",
     layout="wide",
     initial_sidebar_state="expanded",
+)
+
+# ─────────────────────────────────────────────────────────────────────────────
+# LOGO HELPER
+# ─────────────────────────────────────────────────────────────────────────────
+def img_to_b64(path: str) -> str:
+    with open(path, "rb") as f:
+        return base64.b64encode(f.read()).decode()
+
+# Try to load logos — gracefully skip if files not present
+_dir = Path(__file__).parent
+_logo_cj  = _dir / "carbon_jar_logo.png"
+_logo_smu = _dir / "LOGO_SMU.png"
+
+logo_cj_html  = (
+    f'<img src="data:image/png;base64,{img_to_b64(str(_logo_cj))}"  '
+    f'style="height:52px;width:auto;object-fit:contain;" />'
+    if _logo_cj.exists() else ""
+)
+logo_smu_html = (
+    f'<img src="data:image/png;base64,{img_to_b64(str(_logo_smu))}" '
+    f'style="height:48px;width:auto;object-fit:contain;filter:brightness(1.15);" />'
+    if _logo_smu.exists() else ""
 )
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -19,11 +44,9 @@ st.markdown("""
 
   html, body, [class*="css"] { font-family: 'Inter', sans-serif; }
 
-  /* ── background ── */
   .stApp { background: #080C12; color: #DCE6EE; }
   .block-container { padding: 1.8rem 2.4rem 2.4rem; max-width: 100%; }
 
-  /* ── sidebar ── */
   [data-testid="stSidebar"] {
     background: linear-gradient(180deg, #0C1219 0%, #0A1018 100%);
     border-right: 1px solid rgba(255,255,255,.05);
@@ -45,7 +68,6 @@ st.markdown("""
     letter-spacing: .04em;
   }
 
-  /* ── metric cards ── */
   [data-testid="stMetric"] {
     background: #0D1520;
     border: 1px solid #182535;
@@ -83,7 +105,6 @@ st.markdown("""
     color: #00C9A7 !important;
   }
 
-  /* ── tabs ── */
   [data-testid="stTabs"] [data-baseweb="tab-list"] {
     background: transparent !important;
     border-bottom: 1px solid #182535 !important;
@@ -112,7 +133,6 @@ st.markdown("""
     background: rgba(0,201,167,.07) !important;
   }
 
-  /* ── section label ── */
   .sec-label {
     font-family: 'DM Mono', monospace;
     font-size: 9.5px;
@@ -132,14 +152,14 @@ st.markdown("""
     background: linear-gradient(90deg, #182535 0%, transparent 100%);
   }
 
-  /* ── page title ── */
   .dash-header {
     display: flex;
-    align-items: flex-end;
+    align-items: center;
     justify-content: space-between;
     margin-bottom: 1.6rem;
     padding-bottom: 1.2rem;
     border-bottom: 1px solid #182535;
+    gap: 24px;
   }
   .dash-title {
     font-family: 'Syne', sans-serif;
@@ -170,8 +190,19 @@ st.markdown("""
     display: inline-block;
     margin-right: 6px;
   }
+  .logo-strip {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    flex-shrink: 0;
+  }
+  .logo-divider {
+    width: 1px;
+    height: 40px;
+    background: #182535;
+    flex-shrink: 0;
+  }
 
-  /* ── insight cards ── */
   .icard {
     background: linear-gradient(135deg, #0D1825 0%, #0A1520 100%);
     border: 1px solid #182535;
@@ -209,7 +240,6 @@ st.markdown("""
     font-size: 11px;
   }
 
-  /* ── chart card wrapper ── */
   .chart-card {
     background: #0D1520;
     border: 1px solid #182535;
@@ -218,7 +248,6 @@ st.markdown("""
     margin-bottom: 16px;
   }
 
-  /* ── scope badges ── */
   .badge-s1 {
     background: rgba(0,150,255,.12); color: #4AACFF;
     border: 1px solid rgba(0,150,255,.22);
@@ -234,22 +263,13 @@ st.markdown("""
     letter-spacing: .08em; text-transform: uppercase; display: inline-block;
   }
 
-  /* ── divider ── */
   hr { border: none !important; border-top: 1px solid #182535 !important; margin: 1.2rem 0 !important; }
-
-  /* ── dataframe ── */
   [data-testid="stDataFrame"] { border: 1px solid #182535; border-radius: 10px; overflow: hidden; }
-
-  /* ── caption ── */
   .stCaption { font-family: 'DM Mono', monospace !important; font-size: 9.5px !important;
                color: #2D4458 !important; letter-spacing: .05em !important; }
-
-  /* ── checkbox ── */
   [data-testid="stCheckbox"] label {
     font-family: 'DM Mono', monospace !important; font-size: 10.5px !important; letter-spacing: .04em !important;
   }
-
-  /* ── scrollbar ── */
   ::-webkit-scrollbar { width: 5px; height: 5px; }
   ::-webkit-scrollbar-track { background: #080C12; }
   ::-webkit-scrollbar-thumb { background: #182535; border-radius: 4px; }
@@ -369,42 +389,32 @@ bus_raw = pd.DataFrame({
 })
 bus_raw["tCO2e"] = bus_raw["Distance_km"] * ef_bus_km / 1000
 
-# ── HVAC — R410A refrigerant-based calculation ──────────────────────────────
-# Refrigerant: R410A, EF = 2,088 kgCO₂e / kg (IPCC AR5 GWP100)
-# Heating circuit: 15 kg × 2,088 = 31,320 kgCO₂e (annual) = 0.03132 tCO₂e
-# Cooling circuit: 25 kg × 2,088 = 52,200 kgCO₂e (annual) = 0.05220 tCO₂e
-# Total HVAC:                       83,520 kgCO₂e (annual) = 0.08352 tCO₂e
+HVAC_HEAT_KG      = hvac_heat_kg
+HVAC_COOL_KG      = hvac_cool_kg
+EF_REFRIGERANT    = ef_refrigerant
 
-HVAC_HEAT_KG      = hvac_heat_kg         # 15 kg from sidebar
-HVAC_COOL_KG      = hvac_cool_kg         # 25 kg from sidebar
-EF_REFRIGERANT    = ef_refrigerant       # 2,088 kgCO₂e/kg from sidebar
+hvac_heat_kgco2e  = HVAC_HEAT_KG * EF_REFRIGERANT
+hvac_cool_kgco2e  = HVAC_COOL_KG * EF_REFRIGERANT
+hvac_total_kgco2e = hvac_heat_kgco2e + hvac_cool_kgco2e
 
-# Annual totals in kgCO₂e
-hvac_heat_kgco2e  = HVAC_HEAT_KG * EF_REFRIGERANT    # 31,320 kgCO₂e
-hvac_cool_kgco2e  = HVAC_COOL_KG * EF_REFRIGERANT    # 52,200 kgCO₂e
-hvac_total_kgco2e = hvac_heat_kgco2e + hvac_cool_kgco2e  # 83,520 kgCO₂e
+total_s1heating = hvac_heat_kgco2e / 1000000
+total_s1cooling = hvac_cool_kgco2e / 1000000
+total_s1hvac    = total_s1heating + total_s1cooling
 
-# Annual totals in tCO₂e (CORRECTED - small values)
-total_s1heating = hvac_heat_kgco2e / 1000000   # 0.03132 tCO₂e
-total_s1cooling = hvac_cool_kgco2e / 1000000   # 0.05220 tCO₂e
-total_s1hvac    = total_s1heating + total_s1cooling  # 0.08352 tCO₂e
-
-# Monthly distribution masks
-HEAT_MONTHS = [0,1,2,3,10,11]   # Jan Feb Mar Apr Nov Dec
-COOL_MONTHS = [4,5,6,7,8,9]     # May Jun Jul Aug Sep Oct
+HEAT_MONTHS = [0,1,2,3,10,11]
+COOL_MONTHS = [4,5,6,7,8,9]
 
 hvac_heating_kwh = np.array([2287.5, 2316.8, 2391.0, 2415.5,    0,    0,
                                   0,      0,      0,      0, 2349.1, 2305.8])
 hvac_cooling_kwh = np.array([   0,      0,      0,      0, 2445.0, 2500.0,
                               2502.3, 2498.5, 2456.8, 2403.7,    0,     0])
 
-# Monthly kgCO₂e — equal share of annual total across active months
 hvac_heat_kgco2e_mo = np.zeros(12)
 hvac_cool_kgco2e_mo = np.zeros(12)
 for i in HEAT_MONTHS:
-    hvac_heat_kgco2e_mo[i] = hvac_heat_kgco2e / len(HEAT_MONTHS)   # 5,220 kgCO₂e/month
+    hvac_heat_kgco2e_mo[i] = hvac_heat_kgco2e / len(HEAT_MONTHS)
 for i in COOL_MONTHS:
-    hvac_cool_kgco2e_mo[i] = hvac_cool_kgco2e / len(COOL_MONTHS)   # 8,700 kgCO₂e/month
+    hvac_cool_kgco2e_mo[i] = hvac_cool_kgco2e / len(COOL_MONTHS)
 
 hvac_df = pd.DataFrame({
     "Month":            MONTHS,
@@ -429,7 +439,7 @@ elec_df["MWh"]   = elec_df["kWh"] / 1000
 elec_df["tCO2e"] = elec_df["kWh"] * ef_grid / 1000
 
 # ─────────────────────────────────────────────────────────────────────────────
-# AGGREGATES & DERIVED SERIES
+# AGGREGATES
 # ─────────────────────────────────────────────────────────────────────────────
 total_s2        = elec_df["tCO2e"].sum()
 total_s1v       = vehicle_raw["tCO2e"].sum()
@@ -444,7 +454,6 @@ for _, row in vehicle_raw.iterrows():
 for _, row in bus_raw.iterrows():
     s1_mobile[int(row["Month_num"])-1] += row["tCO2e"]
 
-# Convert HVAC monthly kgCO₂e → tCO₂e (divide by 1,000,000 for proper small values)
 s1_monthly    = s1_mobile + hvac_heat_kgco2e_mo/1000000 + hvac_cool_kgco2e_mo/1000000
 s2_monthly    = elec_df["tCO2e"].values.copy()
 total_monthly = s1_monthly + s2_monthly
@@ -538,15 +547,28 @@ def hline(val, color, dash=[5,3]):
 def hp(h=300): return {"height": h}
 
 # ─────────────────────────────────────────────────────────────────────────────
-# HEADER
+# HEADER  — with logos
 # ─────────────────────────────────────────────────────────────────────────────
-st.markdown("""
+st.markdown(f"""
 <div class="dash-header">
-  <div>
-    <div class="dash-title">🌿 GHG Carbon <span>Monitor</span></div>
-    <div class="dash-sub">GHG Protocol · Scope 1 & 2 · Medtech · Tunisia · 2025</div>
+  <div style="display:flex;align-items:center;gap:20px;flex:1;min-width:0">
+
+    <!-- logos -->
+    <div class="logo-strip">
+      {logo_cj_html}
+      <div class="logo-divider"></div>
+      {logo_smu_html}
+    </div>
+
+    <!-- title block -->
+    <div>
+      <div class="dash-title">🌿 GHG Carbon <span>Monitor</span></div>
+      <div class="dash-sub">GHG Protocol · Scope 1 & 2 · Medtech · Tunisia · 2025</div>
+    </div>
   </div>
-  <div style="text-align:right">
+
+  <!-- badges -->
+  <div style="text-align:right;flex-shrink:0">
     <span class="dash-badge">Scope 1 · Mobile + HVAC</span>
     <span class="dash-badge">Scope 2 · Electricity</span>
     <br><br>
@@ -576,7 +598,6 @@ tab1,tab2,tab3,tab4,tab5,tab6 = st.tabs([
     "🚗 Scope 1",
     "⚡ Scope 2",
 ])
-
 
 # ══════════════════════════════════════════════════════════════════════════════
 # TAB 1 — OVERVIEW
@@ -880,7 +901,6 @@ with tab5:
     m4.metric("🔥 HVAC Heating",  f"{total_s1heating:.6f}",             "tCO₂e · R410A")
     m5.metric("❄️ HVAC Cooling",  f"{total_s1cooling:.6f}",             "tCO₂e · R410A")
 
-    # ── R410A Calculation Panel ───────────────────────────────────────────────
     st.markdown('<div class="sec-label">HVAC refrigerant — R410A emission calculation</div>', unsafe_allow_html=True)
 
     heat_kgco2e  = hvac_heat_kgco2e
@@ -916,7 +936,6 @@ with tab5:
             <span style="font-family:DM Mono,monospace;font-size:1.3rem;font-weight:700;color:#00C9A7">= {total_kgco2e:,.0f} kgCO₂e <span style="font-size:0.9rem;">({total_tco2e:.6f} tCO₂e)</span></span>
         </div>""", unsafe_allow_html=True)
 
-    # ── Chart A: Stacked Scope 1 monthly ──────────────────────────────────────
     st.markdown('<div class="sec-label">Monthly Scope 1 — stacked by source (fuel + HVAC heating + HVAC cooling)</div>', unsafe_allow_html=True)
     fuel_mo = np.zeros(12)
     bus_mo  = np.zeros(12)
@@ -925,7 +944,6 @@ with tab5:
     for _, row in bus_raw.iterrows():
         bus_mo[int(row["Month_num"])-1] += row["tCO2e"]
 
-    # Build long dataframe
     s1_long = pd.DataFrame({
         "Month":   MONTHS * 4,
         "Type":    ["Fuel vouchers"]*12 + ["Bus/Van"]*12 + ["HVAC Heating"]*12 + ["HVAC Cooling"]*12,
@@ -939,7 +957,7 @@ with tab5:
     })
     s1_long["Month"] = pd.Categorical(s1_long["Month"], categories=MONTHS, ordered=True)
 
-    fuel_bus_df = s1_long[s1_long["Unit"] == "tCO₂e"]
+    fuel_bus_df  = s1_long[s1_long["Unit"] == "tCO₂e"]
     hvac_df_long = s1_long[s1_long["Unit"] == "kgCO₂e"]
 
     bars_fuel = alt.Chart(fuel_bus_df).mark_bar(
@@ -953,7 +971,6 @@ with tab5:
         tooltip=[alt.Tooltip("Month:N"), alt.Tooltip("Type:N"),
                  alt.Tooltip("tCO2e:Q", format=".6f", title="tCO₂e")],
     )
-
     bars_hvac = alt.Chart(hvac_df_long).mark_bar(
         cornerRadiusTopLeft=4, cornerRadiusTopRight=4, width={"band": .7}
     ).encode(
@@ -965,18 +982,15 @@ with tab5:
         tooltip=[alt.Tooltip("Month:N"), alt.Tooltip("Type:N"),
                  alt.Tooltip("kgCO2e:Q", format=",.2f", title="kgCO₂e")],
     )
-
     s1_ov_line = smooth_line(trend_df, "Scope1", C_ROLL, 1.8, [4,2], label="Total S1")
     s1_ov_pts  = glow_point(trend_df, "Scope1", C_ROLL, 42)
     st.altair_chart(
         (bars_fuel + bars_hvac + s1_ov_line + s1_ov_pts).properties(**hp(300)),
         use_container_width=True
     )
-    st.caption(f"Y-axis in tCO₂e for all sources  ·  HVAC tooltip shows kgCO₂e: Heating {hvac_heat_kgco2e:,.0f} kgCO₂e/year · Cooling {hvac_cool_kgco2e:,.0f} kgCO₂e/year")
+    st.caption(f"Y-axis in tCO₂e · HVAC tooltip shows kgCO₂e: Heating {hvac_heat_kgco2e:,.0f} kgCO₂e/year · Cooling {hvac_cool_kgco2e:,.0f} kgCO₂e/year")
 
-    # ── Chart B: HVAC heating & cooling on SAME chart ─────────────────────────
-    st.markdown('<div class="sec-label">HVAC — heating & cooling loads on the same chart (both Scope 1) — kgCO₂e</div>', unsafe_allow_html=True)
-
+    st.markdown('<div class="sec-label">HVAC — heating & cooling loads (kgCO₂e)</div>', unsafe_allow_html=True)
     hvac_long = pd.DataFrame({
         "Month":  MONTHS * 2,
         "Type":   ["🔥 Heating (Scope 1)"]*12 + ["❄️ Cooling (Scope 1)"]*12,
@@ -1001,130 +1015,74 @@ with tab5:
                  alt.Tooltip("kgCO2e:Q", format=",.2f", title="kgCO₂e"),
                  alt.Tooltip("Scope:N")],
     )
-
     heat_pts_df = hvac_df[hvac_df["Heating_kWh"]>0].copy()
     cool_pts_df = hvac_df[hvac_df["Cooling_kWh"]>0].copy()
 
-    heat_line = alt.Chart(heat_pts_df).mark_line(
-        color=C_HEAT, strokeWidth=2.4, interpolate=interp
-    ).encode(
-        x=mx(),
-        y=alt.Y("Heating_kgCO2e:Q", title="kgCO₂e", axis=alt.Axis(titleColor=C_HEAT)),
-        tooltip=[alt.Tooltip("Month:N"),
-                 alt.Tooltip("Heating_kgCO2e:Q", format=",.2f", title="Heating kgCO₂e (S1)")],
+    heat_line = alt.Chart(heat_pts_df).mark_line(color=C_HEAT,strokeWidth=2.4,interpolate=interp).encode(
+        x=mx(), y=alt.Y("Heating_kgCO2e:Q",title="kgCO₂e",axis=alt.Axis(titleColor=C_HEAT)),
+        tooltip=[alt.Tooltip("Month:N"),alt.Tooltip("Heating_kgCO2e:Q",format=",.2f",title="Heating kgCO₂e (S1)")],
     )
-    heat_pts = alt.Chart(heat_pts_df).mark_point(
-        color=C_HEAT, filled=True, size=60, shape="triangle-up"
-    ).encode(
+    heat_pts = alt.Chart(heat_pts_df).mark_point(color=C_HEAT,filled=True,size=60,shape="triangle-up").encode(
         x=mx(), y=alt.Y("Heating_kgCO2e:Q"),
-        tooltip=[alt.Tooltip("Month:N"),
-                 alt.Tooltip("Heating_kgCO2e:Q", format=",.2f", title="Heating kgCO₂e (S1)")],
+        tooltip=[alt.Tooltip("Month:N"),alt.Tooltip("Heating_kgCO2e:Q",format=",.2f",title="Heating kgCO₂e (S1)")],
     )
-
-    cool_line = alt.Chart(cool_pts_df).mark_line(
-        color="#B57BFF", strokeWidth=2.4, interpolate=interp, strokeDash=[4,2]
-    ).encode(
-        x=mx(),
-        y=alt.Y("Cooling_kgCO2e:Q", title="kgCO₂e"),
-        tooltip=[alt.Tooltip("Month:N"),
-                 alt.Tooltip("Cooling_kgCO2e:Q", format=",.2f", title="Cooling kgCO₂e (S1)")],
+    cool_line = alt.Chart(cool_pts_df).mark_line(color="#B57BFF",strokeWidth=2.4,interpolate=interp,strokeDash=[4,2]).encode(
+        x=mx(), y=alt.Y("Cooling_kgCO2e:Q",title="kgCO₂e"),
+        tooltip=[alt.Tooltip("Month:N"),alt.Tooltip("Cooling_kgCO2e:Q",format=",.2f",title="Cooling kgCO₂e (S1)")],
     )
-    cool_pts = alt.Chart(cool_pts_df).mark_point(
-        color="#B57BFF", filled=True, size=60, shape="triangle-down"
-    ).encode(
+    cool_pts = alt.Chart(cool_pts_df).mark_point(color="#B57BFF",filled=True,size=60,shape="triangle-down").encode(
         x=mx(), y=alt.Y("Cooling_kgCO2e:Q"),
-        tooltip=[alt.Tooltip("Month:N"),
-                 alt.Tooltip("Cooling_kgCO2e:Q", format=",.2f", title="Cooling kgCO₂e (S1)")],
+        tooltip=[alt.Tooltip("Month:N"),alt.Tooltip("Cooling_kgCO2e:Q",format=",.2f",title="Cooling kgCO₂e (S1)")],
     )
-
-    hvac_combined = alt.layer(
-        hvac_bars, heat_line+heat_pts, cool_line+cool_pts
-    ).resolve_scale(y="independent").properties(**hp(320))
+    hvac_combined = alt.layer(hvac_bars, heat_line+heat_pts, cool_line+cool_pts).resolve_scale(y="independent").properties(**hp(320))
     st.altair_chart(hvac_combined, use_container_width=True)
-    st.caption(
-        f"Bars = kWh load (left axis)  ·  "
-        f"△ amber = heating (S1) · {hvac_heat_kgco2e:,.0f} kgCO₂e/year ({total_s1heating:.6f} tCO₂e)  ·  "
-        f"▽ violet = cooling (S1) · {hvac_cool_kgco2e:,.0f} kgCO₂e/year ({total_s1cooling:.6f} tCO₂e)  ·  "
-        f"R410A @ {EF_REFRIGERANT:,.0f} kgCO₂e/kg  ·  Right axis = kgCO₂e"
-    )
+    st.caption(f"Bars = kWh load (left axis) · △ amber = heating · ▽ violet = cooling · R410A @ {EF_REFRIGERANT:,.0f} kgCO₂e/kg")
 
-    # ── Chart C: HVAC kgCO₂e area — both on same chart, overlapping ──────────
-    st.markdown('<div class="sec-label">HVAC kgCO₂e — heating vs cooling, both Scope 1, same axis</div>', unsafe_allow_html=True)
-
-    hvac_area_heat = alt.Chart(hvac_df).mark_area(
-        color=C_HEAT, opacity=0.14, interpolate=interp,
-        line={"color":C_HEAT,"strokeWidth":2.2}
-    ).encode(
-        x=mx(), y=alt.Y("Heating_kgCO2e:Q", title="kgCO₂e", stack=None),
-        tooltip=[alt.Tooltip("Month:N"),
-                 alt.Tooltip("Heating_kgCO2e:Q", format=",.2f", title="Heating kgCO₂e (S1)")],
+    st.markdown('<div class="sec-label">HVAC kgCO₂e — heating vs cooling, same axis</div>', unsafe_allow_html=True)
+    hvac_area_heat = alt.Chart(hvac_df).mark_area(color=C_HEAT,opacity=0.14,interpolate=interp,
+        line={"color":C_HEAT,"strokeWidth":2.2}).encode(
+        x=mx(), y=alt.Y("Heating_kgCO2e:Q",title="kgCO₂e",stack=None),
+        tooltip=[alt.Tooltip("Month:N"),alt.Tooltip("Heating_kgCO2e:Q",format=",.2f",title="Heating kgCO₂e (S1)")],
     )
-    hvac_area_cool = alt.Chart(hvac_df).mark_area(
-        color="#B57BFF", opacity=0.14, interpolate=interp,
-        line={"color":"#B57BFF","strokeWidth":2.2,"strokeDash":[4,2]}
-    ).encode(
-        x=mx(), y=alt.Y("Cooling_kgCO2e:Q", title="kgCO₂e", stack=None),
-        tooltip=[alt.Tooltip("Month:N"),
-                 alt.Tooltip("Cooling_kgCO2e:Q", format=",.2f", title="Cooling kgCO₂e (S1)")],
+    hvac_area_cool = alt.Chart(hvac_df).mark_area(color="#B57BFF",opacity=0.14,interpolate=interp,
+        line={"color":"#B57BFF","strokeWidth":2.2,"strokeDash":[4,2]}).encode(
+        x=mx(), y=alt.Y("Cooling_kgCO2e:Q",title="kgCO₂e",stack=None),
+        tooltip=[alt.Tooltip("Month:N"),alt.Tooltip("Cooling_kgCO2e:Q",format=",.2f",title="Cooling kgCO₂e (S1)")],
     )
-    hvac_pts_heat = alt.Chart(hvac_df).mark_point(
-        color=C_HEAT, filled=True, size=55
-    ).encode(
+    hvac_pts_heat = alt.Chart(hvac_df).mark_point(color=C_HEAT,filled=True,size=55).encode(
         x=mx(), y=alt.Y("Heating_kgCO2e:Q"),
-        tooltip=[alt.Tooltip("Month:N"),
-                 alt.Tooltip("Heating_kgCO2e:Q", format=",.2f", title="Heating kgCO₂e (S1)")],
+        tooltip=[alt.Tooltip("Month:N"),alt.Tooltip("Heating_kgCO2e:Q",format=",.2f",title="Heating kgCO₂e (S1)")],
     )
-    hvac_pts_cool = alt.Chart(hvac_df).mark_point(
-        color="#B57BFF", filled=True, size=55
-    ).encode(
+    hvac_pts_cool = alt.Chart(hvac_df).mark_point(color="#B57BFF",filled=True,size=55).encode(
         x=mx(), y=alt.Y("Cooling_kgCO2e:Q"),
-        tooltip=[alt.Tooltip("Month:N"),
-                 alt.Tooltip("Cooling_kgCO2e:Q", format=",.2f", title="Cooling kgCO₂e (S1)")],
+        tooltip=[alt.Tooltip("Month:N"),alt.Tooltip("Cooling_kgCO2e:Q",format=",.2f",title="Cooling kgCO₂e (S1)")],
     )
+    st.altair_chart((hvac_area_heat+hvac_area_cool+hvac_pts_heat+hvac_pts_cool).properties(**hp(280)), use_container_width=True)
 
-    hvac_tco2_chart = (hvac_area_heat + hvac_area_cool +
-                       hvac_pts_heat + hvac_pts_cool).properties(**hp(280))
-    st.altair_chart(hvac_tco2_chart, use_container_width=True)
-    st.caption(
-        f"Amber = heating · {HVAC_HEAT_KG:.0f} kg × {EF_REFRIGERANT:,.0f} = "
-        f"{hvac_heat_kgco2e:,.0f} kgCO₂e ({total_s1heating:.6f} tCO₂e)  ·  "
-        f"Violet = cooling · {HVAC_COOL_KG:.0f} kg × {EF_REFRIGERANT:,.0f} = "
-        f"{hvac_cool_kgco2e:,.0f} kgCO₂e ({total_s1cooling:.6f} tCO₂e)  ·  "
-        f"Both Scope 1 · R410A refrigerant"
-    )
-
-    # ── Chart D: Cumulative S1 build-up ──────────────────────────────────────
     st.markdown('<div class="sec-label">Cumulative Scope 1 — mobile vs HVAC heating vs HVAC cooling</div>', unsafe_allow_html=True)
-    cum_mob      = np.cumsum(fuel_mo + bus_mo)
-    cum_hvac_h   = np.cumsum(hvac_heat_kgco2e_mo / 1000000)
-    cum_hvac_c   = np.cumsum(hvac_cool_kgco2e_mo / 1000000)
-    cum_s1t      = np.cumsum(fuel_mo + bus_mo + hvac_heat_kgco2e_mo/1000000 + hvac_cool_kgco2e_mo/1000000)
-
+    cum_mob    = np.cumsum(fuel_mo + bus_mo)
+    cum_hvac_h = np.cumsum(hvac_heat_kgco2e_mo / 1000000)
+    cum_hvac_c = np.cumsum(hvac_cool_kgco2e_mo / 1000000)
+    cum_s1t    = np.cumsum(fuel_mo + bus_mo + hvac_heat_kgco2e_mo/1000000 + hvac_cool_kgco2e_mo/1000000)
     cum_s1_df = pd.DataFrame({
         "Month":  MONTHS * 4,
-        "Series": ["Mobile combustion"]*12 + ["HVAC Heating"]*12 +
-                  ["HVAC Cooling"]*12 + ["Total S1"]*12,
-        "Cum":    list(cum_mob) + list(cum_hvac_h) + list(cum_hvac_c) + list(cum_s1t),
+        "Series": ["Mobile combustion"]*12+["HVAC Heating"]*12+["HVAC Cooling"]*12+["Total S1"]*12,
+        "Cum":    list(cum_mob)+list(cum_hvac_h)+list(cum_hvac_c)+list(cum_s1t),
     })
-    cum_s1_df["Month"] = pd.Categorical(cum_s1_df["Month"], categories=MONTHS, ordered=True)
-    cs1_scale = alt.Scale(
-        domain=["Mobile combustion","HVAC Heating","HVAC Cooling","Total S1"],
-        range=[C_S1, C_HEAT, "#B57BFF", C_ROLL]
+    cum_s1_df["Month"] = pd.Categorical(cum_s1_df["Month"],categories=MONTHS,ordered=True)
+    cs1_scale = alt.Scale(domain=["Mobile combustion","HVAC Heating","HVAC Cooling","Total S1"],
+                          range=[C_S1, C_HEAT, "#B57BFF", C_ROLL])
+    cs1_lines = alt.Chart(cum_s1_df).mark_line(strokeWidth=2.2,interpolate=interp).encode(
+        x=mx(), y=alt.Y("Cum:Q",title="Cumulative tCO₂e"),
+        color=alt.Color("Series:N",scale=cs1_scale,legend=alt.Legend(orient="top",title=None)),
+        tooltip=[alt.Tooltip("Month:N"),alt.Tooltip("Series:N"),alt.Tooltip("Cum:Q",format=".6f",title="Cumulative tCO₂e")],
     )
-    cs1_lines = alt.Chart(cum_s1_df).mark_line(strokeWidth=2.2, interpolate=interp).encode(
-        x=mx(), y=alt.Y("Cum:Q", title="Cumulative tCO₂e"),
-        color=alt.Color("Series:N", scale=cs1_scale,
-                        legend=alt.Legend(orient="top", title=None)),
-        tooltip=[alt.Tooltip("Month:N"), alt.Tooltip("Series:N"),
-                 alt.Tooltip("Cum:Q", format=".6f", title="Cumulative tCO₂e")],
-    )
-    cs1_pts = alt.Chart(cum_s1_df).mark_point(filled=True, size=50).encode(
+    cs1_pts = alt.Chart(cum_s1_df).mark_point(filled=True,size=50).encode(
         x=mx(), y=alt.Y("Cum:Q"),
-        color=alt.Color("Series:N", scale=cs1_scale),
+        color=alt.Color("Series:N",scale=cs1_scale),
     )
-    st.altair_chart((cs1_lines + cs1_pts).properties(**hp(270)), use_container_width=True)
+    st.altair_chart((cs1_lines+cs1_pts).properties(**hp(270)), use_container_width=True)
 
-    # ── Vehicle bar ───────────────────────────────────────────────────────────
     st.markdown('<div class="sec-label">Vehicle fuel — liters & emissions</div>', unsafe_allow_html=True)
     fuel_df = pd.DataFrame({
         "Vehicle":["Diesel fleet","Peugeot Bipper (Feb)","Peugeot Bipper (Dec)"],
@@ -1135,32 +1093,24 @@ with tab5:
     fb = alt.Chart(fuel_df).mark_bar(cornerRadiusTopLeft=4,cornerRadiusTopRight=4).encode(
         x=alt.X("Vehicle:N",title=None,axis=alt.Axis(labelAngle=-15,labelLimit=190)),
         y=alt.Y("tCO2e:Q",title="tCO₂e"),
-        color=alt.Color("Fuel:N",
-            scale=alt.Scale(domain=["Diesel","Super Gasoline"],range=[C_S1,"#54A0FF"]),
-            legend=alt.Legend(orient="top")),
-        tooltip=[alt.Tooltip("Vehicle:N"),alt.Tooltip("Liters:Q",format=",.1f"),
-                 alt.Tooltip("tCO2e:Q",format=".6f",title="tCO₂e")],
+        color=alt.Color("Fuel:N",scale=alt.Scale(domain=["Diesel","Super Gasoline"],range=[C_S1,"#54A0FF"]),
+                        legend=alt.Legend(orient="top")),
+        tooltip=[alt.Tooltip("Vehicle:N"),alt.Tooltip("Liters:Q",format=",.1f"),alt.Tooltip("tCO2e:Q",format=".6f",title="tCO₂e")],
     )
-    fb_txt = fb.mark_text(dy=-8,fontSize=10,color=TEXT_M,font="DM Mono, monospace").encode(
-        text=alt.Text("tCO2e:Q",format=".6f"))
+    fb_txt = fb.mark_text(dy=-8,fontSize=10,color=TEXT_M,font="DM Mono, monospace").encode(text=alt.Text("tCO2e:Q",format=".6f"))
     st.altair_chart((fb+fb_txt).properties(**hp(220)), use_container_width=True)
 
-    # ── Bus bar ───────────────────────────────────────────────────────────────
     st.markdown('<div class="sec-label">Bus & van trip distances</div>', unsafe_allow_html=True)
-    bus_bar = alt.Chart(bus_raw).mark_bar(
-        color=C_S2, cornerRadiusTopRight=5, cornerRadiusBottomRight=5
-    ).encode(
+    bus_bar = alt.Chart(bus_raw).mark_bar(color=C_S2,cornerRadiusTopRight=5,cornerRadiusBottomRight=5).encode(
         x=alt.X("Distance_km:Q",title="Distance (km)"),
         y=alt.Y("Destination:N",sort="-x",title=None),
         tooltip=[alt.Tooltip("Destination:N"),alt.Tooltip("Distance_km:Q",title="km"),
                  alt.Tooltip("tCO2e:Q",format=".6f",title="tCO₂e"),alt.Tooltip("Source:N")],
     )
-    bus_txt = bus_bar.mark_text(align="left",dx=5,fontSize=10,
-                                 color=TEXT_M,font="DM Mono, monospace").encode(
+    bus_txt = bus_bar.mark_text(align="left",dx=5,fontSize=10,color=TEXT_M,font="DM Mono, monospace").encode(
         text=alt.Text("Distance_km:Q",format=".1f"))
     st.altair_chart((bus_bar+bus_txt).properties(**hp(175)), use_container_width=True)
 
-    # ── Data tables ───────────────────────────────────────────────────────────
     ct1,ct2,ct3 = st.columns(3)
     with ct1:
         st.markdown("**Fuel voucher transactions**")
@@ -1184,7 +1134,7 @@ with tab5:
         for col in ["Heat tCO₂e (S1)","Cool tCO₂e (S1)"]:
             dh[col] = dh[col].map(lambda x: f"{x:.6f}" if x>0 else "—")
         st.dataframe(dh, use_container_width=True, hide_index=True)
-    st.caption(f"R410A refrigerant · EF = {EF_REFRIGERANT:,.0f} kgCO₂e/kg (IPCC AR5 GWP100)  ·  Heating: {HVAC_HEAT_KG:.0f} kg → {hvac_heat_kgco2e:,.0f} kgCO₂e ({total_s1heating:.6f} tCO₂e)  ·  Cooling: {HVAC_COOL_KG:.0f} kg → {hvac_cool_kgco2e:,.0f} kgCO₂e ({total_s1cooling:.6f} tCO₂e)")
+    st.caption(f"R410A · EF = {EF_REFRIGERANT:,.0f} kgCO₂e/kg (IPCC AR5 GWP100) · Heating: {HVAC_HEAT_KG:.0f} kg → {hvac_heat_kgco2e:,.0f} kgCO₂e · Cooling: {HVAC_COOL_KG:.0f} kg → {hvac_cool_kgco2e:,.0f} kgCO₂e")
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -1201,7 +1151,7 @@ with tab6:
     m4.metric("Peak month",        "July · 48,569", "kWh")
     m5.metric("Grid factor",       f"{ef_grid:.4f}", "kgCO₂e / kWh")
 
-    # ── Chart A: Dual-axis bar+line ───────────────────────────────────────────
+    # ── Chart A: Dual-axis bar + line ─────────────────────────────────────────
     st.markdown('<div class="sec-label">Monthly electricity (kWh) vs emissions (tCO₂e)</div>', unsafe_allow_html=True)
     elec_plot = elec_df.copy()
     elec_plot["Month"] = pd.Categorical(elec_plot["Month"],categories=MONTHS,ordered=True)
@@ -1227,20 +1177,17 @@ with tab6:
     st.altair_chart(dual.properties(**hp(310)), use_container_width=True)
     st.caption(f"Dashed line = annual avg {elec_kwh.mean():,.0f} kWh")
 
-    # ── Chart B: Scope 2 area + overlays ─────────────────────────────────────
+    # ── Chart B: Scope 2 area + trend overlays — NO yellow/red dashed lines ──
     st.markdown('<div class="sec-label">Scope 2 emissions — area + trend overlays</div>', unsafe_allow_html=True)
-    s2_chart = area_fill(trend_df,"Scope2",C_S2,0.14)
-    s2_chart = s2_chart + smooth_line(trend_df,"Scope2",C_S2,2.5,label="S2 monthly")
-    s2_chart = s2_chart + glow_point(trend_df,"Scope2",C_S2,58)
+    s2_chart = area_fill(trend_df, "Scope2", C_S2, 0.14)
+    s2_chart = s2_chart + smooth_line(trend_df, "Scope2", C_S2, 2.5, label="S2 monthly")
+    s2_chart = s2_chart + glow_point(trend_df, "Scope2", C_S2, 58)
     if show_rolling:
-        s2_chart = s2_chart + smooth_line(trend_df,"Roll_S2",C_ROLL,1.8,[4,2],.75,"Rolling avg")
-    if show_proj:
-        s2_chart = s2_chart + smooth_line(trend_df,"Proj_S2",C_PROJ,1.4,[5,3],.68,"Projection")
-    if show_target:
-        s2_chart = s2_chart + hline(target_monthly[0]*total_s2/total_all, C_TGT)
+        s2_chart = s2_chart + smooth_line(trend_df, "Roll_S2", C_ROLL, 1.8, [4,2], .75, "Rolling avg")
+    # ── show_proj and show_target lines deliberately removed from this chart ──
     st.altair_chart(s2_chart.properties(**hp(290)), use_container_width=True)
 
-    # ── Chart C: kWh deviation from mean ─────────────────────────────────────
+    # ── Chart C: kWh deviation ────────────────────────────────────────────────
     st.markdown('<div class="sec-label">kWh deviation from annual average</div>', unsafe_allow_html=True)
     trend_df["kWh_Dev"] = trend_df["kWh"] - elec_kwh.mean()
     trend_df["Dev_Dir"] = np.where(trend_df["kWh_Dev"]>=0,"Above avg","Below avg")
@@ -1268,4 +1215,4 @@ with tab6:
     de["MWh"]   = de["MWh"].map("{:.3f}".format)
     de["tCO₂e"] = de["tCO₂e"].map("{:.4f}".format)
     st.dataframe(de, use_container_width=True, hide_index=True)
-    st.caption(f"Grid EF: {ef_grid:.4f} kgCO₂e/kWh (Tunisia STEG)  ·  All values update live with sidebar sliders")
+    st.caption(f"Grid EF: {ef_grid:.4f} kgCO₂e/kWh (Tunisia STEG) · All values update live with sidebar sliders")
